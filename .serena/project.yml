@@ -1,0 +1,4 @@
+project_name: LlmMultiChat3
+language: python
+description: 永続的な記憶を持つ感情的LLM対話システム
+version: 3.0.0
