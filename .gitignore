@@ -1,0 +1,121 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+ENV/
+env/
+.venv
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Redis
+dump.rdb
+
+# DuckDB
+*.duckdb
+*.duckdb.wal
+
+# Neo4j
+neo4j_data/
+
+# Temporary Files
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~
+
+# Model Files (large)
+*.bin
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+models/
+adapters/*.bin
+adapters/*.pt
+
+# Data Files
+data/
+*.csv
+*.json.gz
+*.parquet
+
+# Test Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Documentation Build
+docs/_build/
+site/
+
+# Backup
+*.backup
+*.old
+
+# MinIO / S3
+.minio/
+
+# Airflow
+airflow.cfg
+airflow.db
+airflow-webserver.pid
+
+# Prometheus
+prometheus_data/
+
+# Serena MCP (ユーザー設定は除外、プロジェクト設定は含む)
+.serena/cache/
+.serena/logs/
+.serena/temp/
