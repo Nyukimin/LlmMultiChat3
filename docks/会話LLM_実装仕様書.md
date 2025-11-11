@@ -32,7 +32,7 @@
 ```
 Llm_Multi_Chat/
 ├── main.py                       # メインアプリケーション
-├── config.py                     # 設定・環境変数管理
+├── config.py                     # 設定・環境変数管理（拡張性考慮）
 ├── conversation_state.py         # 会話状態・履歴管理
 ├── llm_nodes.py                  # 各キャラLLMノード処理
 ├── utils.py                      # ログ・エクスポート・検証
@@ -49,7 +49,8 @@ Llm_Multi_Chat/
 │   ├── adaptive_style.py         # 適応的対話スタイル
 │   ├── memory_salience.py        # 記憶重要度判定
 │   ├── topic_tracker.py          # トピック追跡
-│   └── natural_pacing.py         # 自然なタイミング
+│   ├── natural_pacing.py         # 自然なタイミング
+│   └── plugin_manager.py         # プラグインマネージャ（Phase 3）
 │
 ├── personas/                     # 各キャラの設定YAML
 ├── adapters/                     # LoRA / Adapter格納
@@ -58,9 +59,363 @@ Llm_Multi_Chat/
 │   ├── short_term.py             # 短期記憶
 │   ├── mid_term.py               # 中期記憶（Redis/DuckDB）
 │   ├── long_term.py              # 長期記憶（VectorDB/SQL）
-│   └── knowledge_base.py         # 知識ベース
+│   ├── knowledge_base.py         # 知識ベース
+│   └── association_visualization.py  # 3D可視化（v3.0）
+│
+├── security/                     # セキュリティ層（Phase 2）
+│   ├── auth.py                   # 認証・認可
+│   ├── encryption.py             # データ暗号化
+│   └── audit_log.py              # 監査ログ
+│
+├── api/                          # REST/WebSocket API（Phase 3）
+│   ├── routes.py                 # エンドポイント定義
+│   ├── middleware.py             # 認証・レート制限
+│   └── websocket.py              # リアルタイム通信
+│
+├── plugins/                      # プラグインエコシステム（Phase 3）
+│   ├── base.py                   # プラグイン基底クラス
+│   ├── weather.py                # 天気プラグイン例
+│   └── translate.py              # 翻訳プラグイン例
+│
+├── tests/                        # テストスイート（Phase 2）
+│   ├── unit/                     # ユニットテスト
+│   ├── integration/              # 統合テスト
+│   └── performance/              # パフォーマンステスト
+│
+├── static/                       # 静的ファイル（HTML/CSS/JS）
+│   ├── css/                      # スタイルシート
+│   ├── js/                       # JavaScript
+│   └── templates/                # HTMLテンプレート
 │
 └── README.md
+
+
+---
+
+## 2.1 拡張性を考慮した初手設計パターン
+
+**技術スタック: Python + HTML + CSS**
+
+### 2.1.1 プラグイン型アーキテクチャ
+
+**Phase 1から実装**
+
+```python
+# core/plugin_manager.py
+class PluginInterface:
+    """プラグイン基底クラス（初手から定義）"""
+    
+    def on_message(self, message: str, context: dict) -> Optional[dict]:
+        """メッセージ受信時のフック"""
+        pass
+    
+    def on_response(self, response: str, context: dict) -> str:
+        """応答生成後のフック"""
+        return response
+    
+    def on_memory_store(self, memory: dict) -> dict:
+        """記憶保存前のフック"""
+        return memory
+
+class PluginManager:
+    """プラグインマネージャ（Phase 1から組み込み）"""
+    
+    def __init__(self):
+        self.plugins: List[PluginInterface] = []
+    
+    def register(self, plugin: PluginInterface):
+        """プラグイン登録（動的ロード対応）"""
+        self.plugins.append(plugin)
+    
+    def trigger(self, hook: str, *args, **kwargs):
+        """全プラグインのフックを実行"""
+        for plugin in self.plugins:
+            method = getattr(plugin, hook, None)
+            if method:
+                result = method(*args, **kwargs)
+                if result is not None:
+                    return result
+```
+
+**Phase 3で追加実装:**
+```python
+# plugins/weather.py（Phase 3で追加）
+class WeatherPlugin(PluginInterface):
+    def on_message(self, message, context):
+        if "天気" in message:
+            return {"action": "weather_api", "location": "Tokyo"}
+```
+
+---
+
+### 2.1.2 設定ベース拡張（config.py）
+
+**Phase 1から実装**
+
+```python
+# config.py
+class Config:
+    """環境変数+YAML設定の統合管理（拡張性考慮）"""
+    
+    def __init__(self):
+        # Phase 1: 基本設定
+        self.load_env()
+        self.load_yaml()
+        
+        # Phase 2以降の拡張ポイント（初手から定義）
+        self.security = SecurityConfig()  # Phase 2で実装
+        self.api = APIConfig()             # Phase 3で実装
+        self.plugins = []                  # Phase 3で実装
+    
+    def load_yaml(self, path="config.yaml"):
+        """YAML設定の動的読み込み"""
+        with open(path) as f:
+            config = yaml.safe_load(f)
+            self._merge_config(config)
+
+class SecurityConfig:
+    """Phase 2で実装するが、Phase 1から構造定義"""
+    def __init__(self):
+        self.encryption_enabled = False  # Phase 1: OFF
+        self.auth_enabled = False        # Phase 2: ON
+        self.jwt_secret = None           # Phase 2で設定
+```
+
+**config.yaml（Phase 1から拡張可能）**
+```yaml
+# Phase 1設定
+ollama:
+  host: "http://localhost:11434"
+  models:
+    fast: "llama3-jp-8b"
+
+# Phase 2で追加（初手から定義可能）
+security:
+  encryption: false  # Phase 2でtrue
+  auth: false        # Phase 2でtrue
+
+# Phase 3で追加
+api:
+  enabled: false     # Phase 3でtrue
+  rate_limit: 100
+```
+
+---
+
+### 2.1.3 モジュール分離設計
+
+**Phase 1から実装**
+
+```python
+# memory/base.py（Phase 1から抽象化）
+class MemoryBackend(ABC):
+    """記憶バックエンドの抽象基底クラス"""
+    
+    @abstractmethod
+    def store(self, key: str, value: Any):
+        pass
+    
+    @abstractmethod
+    def retrieve(self, key: str) -> Any:
+        pass
+
+# memory/short_term.py（Phase 1実装）
+class ShortTermMemory(MemoryBackend):
+    def __init__(self):
+        self.storage = {}  # RAM
+    
+    def store(self, key, value):
+        self.storage[key] = value
+
+# memory/mid_term.py（Phase 1実装）
+class MidTermMemory(MemoryBackend):
+    def __init__(self):
+        self.redis = redis.Redis()  # Phase 1から実装
+    
+    def store(self, key, value):
+        self.redis.setex(key, 86400, value)
+```
+
+**Phase 2で追加（インターフェース変更不要）:**
+```python
+# memory/encrypted_backend.py（Phase 2で追加）
+class EncryptedMemory(MemoryBackend):
+    def __init__(self, backend: MemoryBackend):
+        self.backend = backend
+        self.cipher = AES256()
+    
+    def store(self, key, value):
+        encrypted = self.cipher.encrypt(value)
+        self.backend.store(key, encrypted)
+```
+
+---
+
+### 2.1.4 エラーハンドリング基盤（Phase 1から）
+
+```python
+# utils/error_handler.py
+class ErrorHandler:
+    """Phase 1から拡張可能なエラーハンドリング"""
+    
+    def __init__(self):
+        self.fallback_strategies = {}
+    
+    def register_fallback(self, error_type: Type[Exception], strategy: Callable):
+        """Phase 3でカスタム戦略追加"""
+        self.fallback_strategies[error_type] = strategy
+    
+    def handle(self, error: Exception) -> Any:
+        """エラー種別に応じた処理"""
+        strategy = self.fallback_strategies.get(type(error))
+        if strategy:
+            return strategy(error)
+        else:
+            # Phase 1: デフォルト処理
+            logger.error(f"Unhandled error: {error}")
+            return None
+
+# Phase 1から登録
+error_handler = ErrorHandler()
+error_handler.register_fallback(TimeoutError, lambda e: "少し待ってください")
+```
+
+---
+
+### 2.1.5 データベース抽象化レイヤー
+
+**Phase 1から実装**
+
+```python
+# core/db_adapter.py
+class DatabaseAdapter(ABC):
+    """Phase 1から拡張可能なDB抽象化"""
+    
+    @abstractmethod
+    def connect(self):
+        pass
+    
+    @abstractmethod
+    def execute(self, query: str, params: tuple):
+        pass
+
+# Phase 1実装
+class SQLiteAdapter(DatabaseAdapter):
+    def connect(self):
+        self.conn = sqlite3.connect("app.db")
+    
+    def execute(self, query, params):
+        return self.conn.execute(query, params)
+
+# Phase 3で追加（インターフェース変更不要）
+class PostgreSQLAdapter(DatabaseAdapter):
+    def connect(self):
+        self.conn = psycopg2.connect(os.getenv("DATABASE_URL"))
+```
+
+---
+
+### 2.1.6 WebUI構造（HTML + CSS + JS）
+
+**Phase 1から拡張可能**
+
+```html
+<!-- static/templates/index.html（Phase 1） -->
+<!DOCTYPE html>
+<html>
+<head>
+    <link rel="stylesheet" href="/static/css/main.css">
+</head>
+<body>
+    <div id="chat-container">
+        <!-- Phase 1: 基本チャット -->
+        <div id="messages"></div>
+        <input id="input" type="text">
+    </div>
+    
+    <!-- Phase 3: 3D可視化（初手からdiv確保） -->
+    <div id="visualization-panel" style="display:none;">
+        <!-- Phase 3で実装 -->
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
+```
+
+```css
+/* static/css/main.css（Phase 1から拡張可能） */
+:root {
+    /* Phase 1: 基本カラー */
+    --primary-color: #4A90E2;
+    
+    /* Phase 4: テーマ切り替え用（初手から定義） */
+    --dark-bg: #1E1E1E;
+    --light-bg: #FFFFFF;
+}
+
+/* Phase 1実装 */
+#chat-container {
+    width: 100%;
+    max-width: 800px;
+}
+
+/* Phase 3で有効化 */
+#visualization-panel {
+    width: 400px;
+    height: 400px;
+}
+```
+
+---
+
+### 2.1.7 テスト基盤（Phase 1から）
+
+```python
+# tests/conftest.py（Phase 1から定義）
+import pytest
+
+@pytest.fixture
+def mock_llm():
+    """Phase 1から使用するモックLLM"""
+    class MockLLM:
+        def generate(self, prompt):
+            return "テスト応答"
+    return MockLLM()
+
+@pytest.fixture
+def test_config():
+    """Phase 1から拡張可能なテスト設定"""
+    return {
+        "phase_1": {"ollama_enabled": True},
+        "phase_2": {"encryption": False},  # Phase 2で有効化
+        "phase_3": {"api_enabled": False}  # Phase 3で有効化
+    }
+```
+
+---
+
+### 2.1.8 フェーズ別実装チェックリスト
+
+| Phase | 初手から実装 | Phase Xで有効化 |
+|-------|-------------|----------------|
+| **Phase 1** | プラグインI/F定義 | - |
+| | エラーハンドリング基盤 | - |
+| | DB抽象化レイヤー | - |
+| | 設定ファイル構造 | - |
+| | WebUI基本構造 | - |
+| **Phase 2** | SecurityConfig定義 | 暗号化・認証実装 |
+| | TestSuite構造 | 全テスト実装 |
+| **Phase 3** | APIConfig定義 | REST/WS実装 |
+| | PluginManager実装 | プラグイン追加 |
+
+---
+
+**拡張の原則:**
+
+1. **Phase 1**: インターフェース・抽象クラス・設定構造を定義
+2. **Phase 2+**: 実装追加（既存コード変更最小限）
+3. **互換性維持**: 古いコードが動き続ける設計
 
 ```
 
