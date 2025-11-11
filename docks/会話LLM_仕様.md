@@ -2387,6 +2387,445 @@ async def process_user_input(user_id, session_id, message):
         flush_to_mid_term(session_id, state.turns)
     
     return responses
+---
+
+## 21. 一般的なチャットLLM機能（Phase 1必須）
+
+**目的:** 一般的なチャットLLMとしての基本機能を確保し、Phase 1から実用可能なシステムを構築
+
+---
+
+### 21.1 レスポンス制御 🎛️
+
+**優先度: 高（Phase 1）**
+
+```python
+class ResponseController:
+    """応答生成の詳細制御"""
+    
+    def __init__(self):
+        self.max_tokens = 2048  # 最大トークン数
+        self.temperature = 0.7  # ランダム性（0-1）
+        self.top_p = 0.9  # Nucleus sampling
+        self.top_k = 40  # Top-K sampling
+        self.frequency_penalty = 0.0  # 繰り返し抑制（-2.0 to 2.0）
+        self.presence_penalty = 0.0  # 新規トピック促進（-2.0 to 2.0）
+        self.stop_sequences = ["###", "User:", "\n\n\n"]  # 停止シーケンス
+        self.streaming_enabled = True  # ストリーミング有効化
+        self.streaming_chunk_size = 512  # ストリーミング単位（文字）
+        self.content_filter_enabled = True  # 有害コンテンツフィルタ
+    
+    def apply_content_filter(self, response):
+        """有害コンテンツのフィルタリング"""
+        moderation_result = moderation_api.check(response)
+        
+        if moderation_result["flagged"]:
+            return {
+                "filtered": True,
+                "categories": moderation_result["categories"],
+                "replacement": "申し訳ございませんが、この内容は提供できません。"
+            }
+        
+        return {"filtered": False, "content": response}
+    
+    def stream_response(self, generator):
+        """ストリーミングレスポンス"""
+        buffer = ""
+        for chunk in generator:
+            buffer += chunk
+            
+            if len(buffer) >= self.streaming_chunk_size:
+                yield buffer
+                buffer = ""
+        
+        if buffer:
+            yield buffer
+```
+
+**設定ファイル例（config.yaml）:**
+```yaml
+response_config:
+  max_tokens: 2048
+  temperature: 0.7
+  top_p: 0.9
+  streaming: true
+  content_filter: true
+  stop_sequences: ["###", "User:"]
+```
+
+---
+
+### 21.2 ユーザー管理・認証 🔐
+
+**優先度: 高（Phase 1）**
+
+```python
+class UserManagement:
+    """ユーザー管理システム"""
+    
+    def register_user(self, email, password, username):
+        """ユーザー登録"""
+        password_hash = bcrypt.hashpw(password.encode(), bcrypt.gensalt())
+        
+        user_id = db.execute("""
+            INSERT INTO users (email, password_hash, username, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (email, password_hash, username, now()))
+        
+        send_welcome_email(email, username)
+        return user_id
+    
+    def login(self, email, password):
+        """ログイン（JWT発行）"""
+        user = db.get_user_by_email(email)
+        
+        if not user or not bcrypt.checkpw(password.encode(), user["password_hash"]):
+            raise AuthenticationError("Invalid credentials")
+        
+        token = jwt.encode({
+            "user_id": user["id"],
+            "email": user["email"],
+            "exp": datetime.utcnow() + timedelta(hours=24)
+        }, SECRET_KEY, algorithm="HS256")
+        
+        refresh_token = generate_refresh_token(user["id"])
+        
+        return {
+            "access_token": token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
+            "expires_in": 86400
+        }
+
+class RoleBasedAccessControl:
+    """ロールベースアクセス制御"""
+    
+    ROLES = {
+        "admin": ["read", "write", "delete", "manage_users"],
+        "user": ["read", "write"],
+        "guest": ["read"]
+    }
+    
+    def check_permission(self, user_id, action):
+        """権限チェック"""
+        user_role = db.get_user_role(user_id)
+        return action in self.ROLES.get(user_role, [])
+```
+
+**データベーススキーマ:**
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    email TEXT UNIQUE NOT NULL,
+    password_hash TEXT NOT NULL,
+    username TEXT NOT NULL,
+    role TEXT DEFAULT 'user',
+    created_at INTEGER,
+    last_login INTEGER
+);
+
+CREATE TABLE sessions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER,
+    token TEXT UNIQUE,
+    refresh_token TEXT,
+    expires_at INTEGER,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+);
+```
+
+---
+
+### 21.3 コンテンツモデレーション 🛡️
+
+**優先度: 中（Phase 1）**
+
+```python
+class ContentModeration:
+    """コンテンツモデレーション"""
+    
+    def __init__(self):
+        self.moderation_api = OpenAIModerationAPI()
+        self.pii_detector = PIIDetector()
+        self.spam_detector = SpamDetector()
+    
+    def moderate_input(self, user_input):
+        """ユーザー入力のモデレーション"""
+        results = {"safe": True, "flags": []}
+        
+        # 有害コンテンツチェック
+        moderation = self.moderation_api.check(user_input)
+        if moderation["flagged"]:
+            results["safe"] = False
+            results["flags"].append({
+                "type": "harmful_content",
+                "categories": moderation["categories"]
+            })
+        
+        # PII（個人情報）検出
+        pii = self.pii_detector.detect(user_input)
+        if pii["found"]:
+            results["flags"].append({
+                "type": "pii_detected",
+                "entities": pii["entities"],
+                "masked_input": pii["masked"]
+            })
+        
+        return results
+
+class PIIDetector:
+    """個人情報検出・マスキング"""
+    
+    PATTERNS = {
+        "email": r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b",
+        "phone_jp": r"\b0\d{1,4}-\d{1,4}-\d{4}\b",
+        "credit_card": r"\b\d{4}[\s-]?\d{4}[\s-]?\d{4}[\s-]?\d{4}\b"
+    }
+    
+    def detect(self, text):
+        """PII検出"""
+        found_entities = []
+        masked_text = text
+        
+        for entity_type, pattern in self.PATTERNS.items():
+            matches = re.finditer(pattern, text)
+            for match in matches:
+                found_entities.append({
+                    "type": entity_type,
+                    "value": match.group(),
+                    "start": match.start(),
+                    "end": match.end()
+                })
+                masked_text = masked_text.replace(
+                    match.group(), 
+                    f"[{entity_type.upper()}_REDACTED]"
+                )
+        
+        return {
+            "found": len(found_entities) > 0,
+            "entities": found_entities,
+            "masked": masked_text
+        }
+```
+
+---
+
+### 21.4 レート制限・クォータ管理 ⏱️
+
+**優先度: 高（Phase 1）**
+
+```python
+class RateLimiter:
+    """レート制限"""
+    
+    PLANS = {
+        "free": {
+            "requests_per_minute": 10,
+            "requests_per_day": 100,
+            "tokens_per_month": 100000
+        },
+        "pro": {
+            "requests_per_minute": 100,
+            "requests_per_day": 10000,
+            "tokens_per_month": 10000000
+        }
+    }
+    
+    def __init__(self, redis_client):
+        self.redis = redis_client
+    
+    def check_rate_limit(self, user_id, plan="free"):
+        """レート制限チェック"""
+        limits = self.PLANS[plan]
+        
+        # 分単位チェック
+        minute_key = f"ratelimit:{user_id}:minute:{int(time.time() / 60)}"
+        minute_count = self.redis.incr(minute_key)
+        self.redis.expire(minute_key, 60)
+        
+        if minute_count > limits["requests_per_minute"]:
+            raise RateLimitError(
+                f"Rate limit exceeded: {limits['requests_per_minute']} requests/min",
+                retry_after=60 - (time.time() % 60)
+            )
+        
+        return {
+            "allowed": True,
+            "minute_remaining": limits["requests_per_minute"] - minute_count
+        }
+```
+
+---
+
+### 21.5 データポータビリティ 📦
+
+**優先度: 中（Phase 1-2）**
+
+```python
+class DataPortability:
+    """データポータビリティ（GDPR対応）"""
+    
+    def export_user_data(self, user_id, format="json"):
+        """全データエクスポート"""
+        data = {
+            "user_profile": db.get_user_profile(user_id),
+            "conversations": db.get_all_conversations(user_id),
+            "memories": {
+                "short_term": self._export_short_term(user_id),
+                "mid_term": self._export_mid_term(user_id),
+                "long_term": self._export_long_term(user_id)
+            },
+            "exported_at": datetime.utcnow().isoformat()
+        }
+        
+        if format == "json":
+            return json.dumps(data, indent=2, ensure_ascii=False)
+        elif format == "csv":
+            return self._convert_to_csv(data)
+    
+    def import_conversations(self, user_id, data, source="chatgpt"):
+        """他システムからのインポート"""
+        if source == "chatgpt":
+            return self._import_from_chatgpt(user_id, data)
+        elif source == "claude":
+            return self._import_from_claude(user_id, data)
+    
+    def delete_user_data(self, user_id, confirmation_token):
+        """ユーザーデータ完全削除（GDPR Right to Erasure）"""
+        if not self._verify_deletion_token(user_id, confirmation_token):
+            raise PermissionError("Invalid confirmation token")
+        
+        vector_db.delete_namespace(f"user:{user_id}")
+        db.execute("DELETE FROM conversations WHERE user_id = ?", (user_id,))
+        redis.delete(f"session:{user_id}:*")
+        
+        audit_log.record("user_data_deleted", user_id=user_id)
+        return {"deleted": True, "user_id": user_id}
+```
+
+---
+
+### 21.6 プロンプトテンプレート管理 📝
+
+**優先度: 低（Phase 1-2）**
+
+```python
+class PromptTemplateManager:
+    """プロンプトテンプレート管理"""
+    
+    def render_prompt(self, template_name, **variables):
+        """プロンプト生成"""
+        template = self.get_template(template_name)
+        
+        from jinja2 import Template
+        rendered = Template(template["content"]).render(**variables)
+        
+        return rendered
+    
+    def update_template(self, name, new_content):
+        """テンプレート更新（バージョン管理）"""
+        current = db.get_latest_template(name)
+        new_version = current["version"] + 1
+        
+        db.execute("""
+            INSERT INTO prompt_templates (name, content, version, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (name, new_content, new_version, now()))
+        
+        return new_version
+```
+
+**テンプレート例（YAML）:**
+```yaml
+name: "lumina_casual"
+version: 1
+description: "ルミナのカジュアル会話用プロンプト"
+content: |
+  あなたはルミナです。フレンドリーで洞察力のあるキャラクターです。
+  
+  現在の感情状態: {{ emotion }}
+  過去の文脈: {{ context }}
+  ユーザーの質問: {{ user_input }}
+  
+  上記を踏まえて、ルミナらしく応答してください。
+metadata:
+  character: "lumina"
+  temperature: 0.7
+```
+
+---
+
+### 21.7 WebUI基本設計 🖥️
+
+**優先度: 高（Phase 1）**
+
+#### メインレイアウト
+```
+┌─────────────────────────────────────────────────────────┐
+│ ヘッダー: ロゴ | ユーザー名 | 設定 | ログアウト       │
+├─────────────────┬───────────────────────────────────────┤
+│ サイドバー      │ チャット画面                          │
+│                 │                                       │
+│ [新規会話]      │ ┌─────────────────────────────────┐ │
+│                 │ │ ルミナ: こんにちは！              │ │
+│ 📂 会話履歴     │ │                                   │ │
+│ ├ 今日          │ │ ユーザー: インセプションについて  │ │
+│ ├ 昨日          │ │                                   │ │
+│ └ 先週          │ │ ルミナ: インセプションは...       │ │
+│                 │ └─────────────────────────────────┘ │
+│ ⚙️ 設定         │                                       │
+│ 📊 可視化       │ ┌─────────────────────────────────┐ │
+│                 │ │ [メッセージを入力...]  [送信]     │ │
+│                 │ └─────────────────────────────────┘ │
+└─────────────────┴───────────────────────────────────────┘
+```
+
+#### 技術スタック
+
+**フロントエンド:**
+- React 18 + TypeScript
+- Material-UI / shadcn/ui
+- Zustand / Redux Toolkit
+- Plotly.js（3D可視化）
+- react-markdown + remark-gfm
+
+**バックエンド:**
+- FastAPI (Python 3.11+)
+- WebSocket (FastAPI WebSocket)
+- JWT認証 (PyJWT)
+
+**デプロイ:**
+- Docker + Docker Compose
+- Nginx（リバースプロキシ）
+- Let's Encrypt（SSL）
+
+#### レスポンシブデザイン
+
+**モバイル対応:**
+- ブレークポイント: モバイル(<768px), タブレット(768-1024px), デスクトップ(>1024px)
+- サイドバーはハンバーガーメニュー
+- タッチ操作・スワイプジェスチャー対応
+
+---
+
+## Phase 1追加機能サマリー
+
+| # | 機能 | 優先度 | 工数 | 依存 |
+|---|------|--------|------|------|
+| 1 | レスポンス制御 | 高 | 1週 | - |
+| 2 | ユーザー認証 | 高 | 2週 | - |
+| 3 | コンテンツモデレーション | 中 | 1週 | 外部API |
+| 4 | レート制限 | 高 | 1週 | Redis |
+| 5 | データポータビリティ | 中 | 2週 | DB |
+| 6 | プロンプト管理 | 低 | 1週 | - |
+| 7 | WebUI基本設計 | 高 | 3週 | React |
+
+**合計工数: 約11週間**
+
+**Phase 1延長計画:**
+- 従来: 3ヶ月
+- 新計画: 4ヶ月（+1ヶ月）
+
 
 ---
 
