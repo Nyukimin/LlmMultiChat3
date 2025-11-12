@@ -1178,4 +1178,737 @@ python migrate_to_v3.py
 - 🔄 トピック追跡
 - 📊 連想ネットワーク3D可視化パネル
 
+
+---
+
+## 16. v3.1新機能の実装詳細（API・MCP・自律サーチ）
+
+### 16.1 REST/WebSocket API実装
+
+**ファイル:** `api/routes.py`, `api/middleware.py`, `api/websocket.py`
+
+**優先度:** 高（Phase 1拡張）  
+**工数:** 2週間
+
+#### 16.1.1 依存関係追加
+
+```bash
+# requirements.txt に追加
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.6
+websockets==12.0
+redis==5.0.1
+```
+
+#### 16.1.2 FastAPIアプリケーション基本構造
+
+**ファイル:** `api/main.py`
+
+```python
+from fastapi import FastAPI, WebSocket, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from pydantic import BaseModel, Field
+from typing import List, Optional, Dict, Any
+from enum import Enum
+import jwt
+from datetime import datetime, timedelta
+import redis
+
+app = FastAPI(title="会話LLM API", version="3.1.0")
+
+# CORS設定
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "https://yourdomain.com"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Redis接続（レート制限用）
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+```
+
+#### 16.1.3 認証実装
+
+**ファイル:** `api/auth.py`
+
+```python
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+from datetime import datetime, timedelta
+
+SECRET_KEY = "your-secret-key-here"  # 環境変数から取得推奨
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def create_access_token(data: dict, expires_delta: timedelta = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(credentials: HTTPAuthorizationCredentials):
+    try:
+        payload = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return user_id
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+```
+
+#### 16.1.4 レート制限実装
+
+**ファイル:** `api/rate_limit.py`
+
+```python
+from fastapi import HTTPException
+import redis
+
+redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+
+def check_rate_limit(user_id: str, role: str = "free"):
+    """
+    レート制限チェック
+    - Free: 100リクエスト/分
+    - Pro: 1000リクエスト/分
+    """
+    limit = 100 if role == "free" else 1000
+    key = f"rate_limit:{user_id}"
+    
+    current = redis_client.get(key)
+    if current is None:
+        redis_client.setex(key, 60, 1)
+    else:
+        count = int(current)
+        if count >= limit:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        redis_client.incr(key)
+```
+
+#### 16.1.5 WebSocket実装
+
+**ファイル:** `api/websocket.py`
+
+```python
+from fastapi import WebSocket, WebSocketDisconnect
+from typing import Dict
+import asyncio
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+    
+    async def connect(self, websocket: WebSocket, user_id: str):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+    
+    def disconnect(self, user_id: str):
+        self.active_connections.pop(user_id, None)
+    
+    async def send_personal_message(self, message: dict, user_id: str):
+        if user_id in self.active_connections:
+            await self.active_connections[user_id].send_json(message)
+
+manager = ConnectionManager()
+
+@app.websocket("/api/v1/stream")
+async def websocket_chat(websocket: WebSocket):
+    await websocket.accept()
+    user_id = None
+    
+    try:
+        # 認証
+        auth_data = await websocket.receive_json()
+        if auth_data.get("type") != "auth":
+            await websocket.send_json({"type": "error", "message": "Authentication required"})
+            await websocket.close()
+            return
+        
+        user_id = verify_token_ws(auth_data["token"])
+        await manager.connect(websocket, user_id)
+        await websocket.send_json({"type": "auth_success", "user_id": user_id})
+        
+        # 会話ループ
+        while True:
+            data = await websocket.receive_json()
+            
+            if data.get("type") == "message":
+                # ストリーミング応答
+                async for chunk in stream_conversation(
+                    user_id=user_id,
+                    message=data["content"],
+                    thread_id=data.get("thread_id")
+                ):
+                    await websocket.send_json({
+                        "type": "chunk",
+                        "content": chunk["text"],
+                        "character": chunk["character"]
+                    })
+                
+                await websocket.send_json({
+                    "type": "done",
+                    "message_id": chunk["message_id"],
+                    "thread_id": chunk["thread_id"]
+                })
+    
+    except WebSocketDisconnect:
+        if user_id:
+            manager.disconnect(user_id)
+    except Exception as e:
+        await websocket.send_json({"type": "error", "message": str(e)})
+```
+
+#### 16.1.6 実装チェックリスト
+
+- [ ] FastAPI基本構造実装
+- [ ] Pydanticモデル定義（`api/models.py`）
+- [ ] JWT認証実装
+- [ ] レート制限（Redis）
+- [ ] WebSocketストリーミング
+- [ ] CORS設定
+- [ ] エラーハンドリング
+- [ ] OpenAPI仕様書自動生成
+- [ ] Postmanコレクション作成
+
+---
+
+### 16.2 MCP (Model Context Protocol) 対応実装
+
+**ファイル:** `mcp/server.py`, `mcp/client.py`
+
+**優先度:** 中（Phase 1拡張）  
+**工数:** 1週間
+
+#### 16.2.1 依存関係追加
+
+```bash
+# requirements.txt に追加
+mcp==0.9.0
+```
+
+#### 16.2.2 MCP Server実装
+
+**ファイル:** `mcp/server.py`
+
+```python
+from mcp.server import Server
+from mcp.types import TextContent, Tool, Resource
+from typing import Any, Sequence
+
+class LlmMultiChatMCPServer(Server):
+    """会話LLMシステムをMCP Serverとして公開"""
+    
+    def __init__(self):
+        super().__init__(name="llm-multi-chat-server")
+        self.register_tools()
+        self.register_resources()
+    
+    def register_tools(self):
+        """ツール登録"""
+        
+        @self.tool()
+        async def chat_with_character(
+            character: str,
+            message: str,
+            thread_id: str | None = None
+        ) -> str:
+            """
+            特定キャラクターと会話
+            
+            Args:
+                character: キャラクター名（lumina/clarisse/nox）
+                message: メッセージ
+                thread_id: スレッドID（継続会話）
+            
+            Returns:
+                応答テキスト
+            """
+            from conversation_state import execute_conversation
+            
+            response = await execute_conversation(
+                user_id="mcp_user",
+                message=message,
+                character=character,
+                thread_id=thread_id
+            )
+            return response["content"]
+        
+        @self.tool()
+        async def search_memories(
+            query: str,
+            limit: int = 10
+        ) -> list[dict[str, Any]]:
+            """
+            記憶検索
+            
+            Args:
+                query: 検索クエリ
+                limit: 最大件数
+            
+            Returns:
+                記憶リスト
+            """
+            from memory.long_term import search_vector_db
+            
+            results = await search_vector_db(
+                user_id="mcp_user",
+                query=query,
+                limit=limit
+            )
+            return results
+        
+        @self.tool()
+        async def get_knowledge_base(
+            kb_name: str,
+            topic: str
+        ) -> str:
+            """
+            知識ベース検索
+            
+            Args:
+                kb_name: 知識ベース名（movie/history/gossip/tech）
+                topic: トピック
+            
+            Returns:
+                関連情報
+            """
+            from memory.knowledge_base import query_knowledge_base
+            
+            results = await query_knowledge_base(kb_name, topic)
+            return "\n\n".join([r["content"] for r in results])
+        
+        @self.tool()
+        async def autonomous_search(
+            query: str,
+            max_results: int = 5
+        ) -> str:
+            """
+            自律的Web検索
+            
+            Args:
+                query: 検索クエリ
+                max_results: 最大件数
+            
+            Returns:
+                検索結果サマリー
+            """
+            from core.autonomous_search import perform_autonomous_search
+            
+            results = await perform_autonomous_search(query, max_results)
+            return summarize_search_results(results)
+    
+    def register_resources(self):
+        """リソース登録"""
+        
+        @self.resource("character://lumina")
+        async def get_lumina_info() -> TextContent:
+            """ルミナのプロフィール"""
+            return TextContent(
+                type="text",
+                text="ルミナ: フレンドリーな司会役。洞察型で雑談・推論が得意。"
+            )
+        
+        @self.resource("character://clarisse")
+        async def get_clarisse_info() -> TextContent:
+            """クラリスのプロフィール"""
+            return TextContent(
+                type="text",
+                text="クラリス: 穏やかな理論派。構造化・解説が得意。"
+            )
+        
+        @self.resource("character://nox")
+        async def get_nox_info() -> TextContent:
+            """ノクスのプロフィール"""
+            return TextContent(
+                type="text",
+                text="ノクス: クールな情報ハンター。検証・要約特化。"
+            )
+        
+        @self.resource("memory://recent")
+        async def get_recent_memories() -> TextContent:
+            """最近の記憶"""
+            from memory.long_term import get_recent_memories
+            
+            memories = await get_recent_memories(user_id="mcp_user", limit=10)
+            text = "\n".join([m["summary"] for m in memories])
+            return TextContent(type="text", text=text)
+
+# MCP Server起動
+if __name__ == "__main__":
+    import asyncio
+    from mcp.server.stdio import stdio_server
+    
+    async def main():
+        server = LlmMultiChatMCPServer()
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options()
+            )
+    
+    asyncio.run(main())
+```
+
+#### 16.2.3 MCP Server起動方法
+
+```bash
+# stdio方式でMCP Server起動
+python mcp/server.py
+
+# Claude Desktop連携設定（~/.config/Claude/claude_desktop_config.json）
+{
+  "mcpServers": {
+    "llm-multi-chat": {
+      "command": "python",
+      "args": ["c:/GenerativeAI/LlmMultiChat3/mcp/server.py"]
+    }
+  }
+}
+```
+
+#### 16.2.4 実装チェックリスト
+
+- [ ] MCP Server基本実装
+- [ ] 4つのツール実装（chat/search/kb/autonomous_search）
+- [ ] 4つのリソース実装（character×3 + memory）
+- [ ] stdio通信実装
+- [ ] Claude Desktop連携テスト
+- [ ] MCPドキュメント作成
+
+---
+
+### 16.3 自律的外部サーチ・情報収集エージェント実装
+
+**ファイル:** `core/autonomous_search.py`, `core/knowledge_updater.py`
+
+**優先度:** 高（Phase 1拡張）  
+**工数:** 2週間
+
+#### 16.3.1 依存関係追加
+
+```bash
+# requirements.txt に追加
+langchain==0.1.0
+langchain-community==0.0.13
+apscheduler==3.10.4
+wikipedia==1.4.0
+```
+
+#### 16.3.2 自律サーチエージェント実装
+
+**ファイル:** `core/autonomous_search.py`
+
+```python
+from langchain.agents import AgentExecutor, create_react_agent
+from langchain.tools import Tool
+from langchain_community.utilities import GoogleSerperAPIWrapper, WikipediaAPIWrapper
+from langchain.prompts import PromptTemplate
+from typing import List, Dict, Any
+import asyncio
+
+class AutonomousSearchAgent:
+    """自律的外部サーチ・情報収集エージェント"""
+    
+    def __init__(self):
+        self.serper = GoogleSerperAPIWrapper()
+        self.wikipedia = WikipediaAPIWrapper()
+        self.tools = self._create_tools()
+        self.agent = self._create_agent()
+    
+    def _create_tools(self) -> List[Tool]:
+        """ツール定義"""
+        return [
+            Tool(
+                name="web_search",
+                func=self.serper.run,
+                description="Web検索。最新情報の取得に使用。"
+            ),
+            Tool(
+                name="knowledge_base_query",
+                func=self._query_kb,
+                description="既存知識ベース検索。movie/history/gossip/techから検索。"
+            ),
+            Tool(
+                name="wikipedia_search",
+                func=self.wikipedia.run,
+                description="Wikipedia検索。詳細な百科事典情報の取得。"
+            ),
+            Tool(
+                name="save_to_kb",
+                func=self._save_to_kb,
+                description="知識ベースへ保存。重要な情報を永続化。"
+            )
+        ]
+    
+    def _create_agent(self):
+        """ReActエージェント作成"""
+        prompt = PromptTemplate.from_template("""
+あなたは自律的な情報収集エージェントです。
+ユーザーの質問に答えるため、以下の手順で情報を収集してください：
+
+1. まず既存の知識ベースを検索
+2. 情報が不足している場合、Web検索を実行
+3. 必要に応じてWikipedia検索で詳細情報を取得
+4. 重要な情報は知識ベースに保存
+5. 最終的な回答を生成
+
+利用可能なツール:
+{tools}
+
+ツール名:
+{tool_names}
+
+質問: {input}
+
+思考プロセス:
+{agent_scratchpad}
+        """)
+        
+        from llm_nodes import get_llm
+        return create_react_agent(
+            llm=get_llm("gpt-4"),
+            tools=self.tools,
+            prompt=prompt
+        )
+    
+    async def search_and_collect(
+        self,
+        query: str,
+        max_depth: int = 3,
+        save_to_kb: bool = True
+    ) -> Dict[str, Any]:
+        """
+        自律的検索・情報収集
+        
+        Args:
+            query: 検索クエリ
+            max_depth: 探索深度
+            save_to_kb: 知識ベース自動保存
+        
+        Returns:
+            収集した情報
+        """
+        agent_executor = AgentExecutor(
+            agent=self.agent,
+            tools=self.tools,
+            verbose=True,
+            max_iterations=max_depth
+        )
+        
+        result = await agent_executor.ainvoke({"input": query})
+        
+        # 知識ベース保存
+        if save_to_kb:
+            await self._save_to_kb(
+                category=self._classify_category(query),
+                content=result["output"]
+            )
+        
+        return {
+            "query": query,
+            "result": result["output"],
+            "intermediate_steps": result.get("intermediate_steps", []),
+            "saved_to_kb": save_to_kb
+        }
+    
+    async def _query_kb(self, query: str) -> str:
+        """知識ベース検索"""
+        from memory.knowledge_base import query_all_knowledge_bases
+        
+        results = await query_all_knowledge_bases(query, top_k=5)
+        if results:
+            return "\n\n".join([r["content"] for r in results])
+        return "知識ベースに関連情報なし"
+    
+    async def _save_to_kb(self, category: str, content: str) -> str:
+        """知識ベース保存"""
+        from memory.knowledge_base import upsert_to_knowledge_base
+        from datetime import datetime
+        
+        await upsert_to_knowledge_base(
+            kb_name=f"kb:{category}",
+            content=content,
+            metadata={"source": "autonomous_search", "timestamp": datetime.utcnow()}
+        )
+        return f"知識ベース kb:{category} に保存完了"
+    
+    def _classify_category(self, query: str) -> str:
+        """カテゴリ分類（簡易版）"""
+        keywords = {
+            "movie": ["映画", "ドラマ", "俳優", "監督"],
+            "history": ["歴史", "年表", "出来事"],
+            "gossip": ["トレンド", "ニュース", "話題"],
+            "tech": ["技術", "プログラミング", "AI"]
+        }
+        
+        for category, kws in keywords.items():
+            if any(kw in query for kw in kws):
+                return category
+        return "custom"
+```
+
+#### 16.3.3 定期更新スケジューラ実装
+
+**ファイル:** `core/knowledge_updater.py`
+
+```python
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from core.autonomous_search import AutonomousSearchAgent
+import asyncio
+
+class KnowledgeBaseUpdater:
+    """知識ベース定期更新"""
+    
+    def __init__(self):
+        self.scheduler = AsyncIOScheduler()
+        self.agent = AutonomousSearchAgent()
+    
+    def start(self):
+        """スケジューラ起動"""
+        # 毎朝6時: ニュース・トレンド更新
+        self.scheduler.add_job(
+            self._update_gossip,
+            'cron',
+            hour=6,
+            minute=0
+        )
+        
+        # 毎週日曜日: 映画情報更新
+        self.scheduler.add_job(
+            self._update_movies,
+            'cron',
+            day_of_week='sun',
+            hour=3,
+            minute=0
+        )
+        
+        # 毎月1日: 技術情報更新
+        self.scheduler.add_job(
+            self._update_tech,
+            'cron',
+            day=1,
+            hour=2,
+            minute=0
+        )
+        
+        self.scheduler.start()
+    
+    async def _update_gossip(self):
+        """トレンド情報更新"""
+        queries = [
+            "今日の主要ニュース",
+            "Twitterトレンド",
+            "話題の出来事"
+        ]
+        for query in queries:
+            await self.agent.search_and_collect(query, save_to_kb=True)
+    
+    async def _update_movies(self):
+        """映画情報更新"""
+        queries = [
+            "今週公開の映画",
+            "話題の映画ランキング",
+            "アカデミー賞ノミネート作品"
+        ]
+        for query in queries:
+            await self.agent.search_and_collect(query, save_to_kb=True)
+    
+    async def _update_tech(self):
+        """技術情報更新"""
+        queries = [
+            "最新AI技術トレンド",
+            "GitHub人気リポジトリ",
+            "Stack Overflow人気質問"
+        ]
+        for query in queries:
+            await self.agent.search_and_collect(query, save_to_kb=True)
+
+# 起動
+if __name__ == "__main__":
+    updater = KnowledgeBaseUpdater()
+    updater.start()
+    
+    # イベントループ維持
+    asyncio.get_event_loop().run_forever()
+```
+
+#### 16.3.4 LangGraphへの統合
+
+**ファイル:** `main.py` に追加
+
+```python
+from core.autonomous_search import AutonomousSearchAgent
+
+# LangGraphノードに追加
+def autonomous_search_node(state: ConversationState):
+    """自律サーチノード"""
+    query = state.history[-1]["msg"]
+    
+    # 既存知識ベース確認
+    kb_results = query_all_knowledge_bases(query, top_k=3)
+    
+    if kb_results and kb_results[0]["score"] > 0.8:
+        # 既存知識で十分
+        state.search_results = kb_results[0]["content"]
+    else:
+        # 外部検索必要
+        agent = AutonomousSearchAgent()
+        result = asyncio.run(agent.search_and_collect(
+            query=query,
+            max_depth=3,
+            save_to_kb=True
+        ))
+        state.search_results = result["result"]
+    
+    return state
+
+# グラフに組み込み
+graph.add_node("autonomous_search", autonomous_search_node)
+graph.add_conditional_edges(
+    "check_kb",
+    lambda s: "autonomous_search" if s["need_search"] else "respond"
+)
+```
+
+#### 16.3.5 実装チェックリスト
+
+- [ ] ReActエージェント実装
+- [ ] 4つのツール実装（web/kb/wikipedia/save）
+- [ ] カテゴリ自動分類
+- [ ] 定期実行スケジューラ
+- [ ] LangGraph統合
+- [ ] 重複排除・品質フィルタ
+- [ ] エラーハンドリング
+
+---
+
+### 16.4 v3.1実装サマリー
+
+| 機能 | ファイル | 工数 | ステータス |
+|------|---------|------|-----------|
+| **REST/WebSocket API** | `api/*.py` | 2週 | Phase 1拡張 |
+| **MCP対応** | `mcp/*.py` | 1週 | Phase 1拡張 |
+| **自律サーチ** | `core/autonomous_*.py` | 2週 | Phase 1拡張 |
+
+**合計工数**: 5週間（Phase 1: 4ヶ月→5ヶ月に延長）
+
+**v3.1の主な追加実装:**
+- 🌐 REST/WebSocket API（FastAPI）
+- 🔌 MCP対応（Claude Desktop連携）
+- 🤖 自律的外部サーチ・情報収集エージェント
+
 ```
