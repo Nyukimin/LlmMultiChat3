@@ -1,0 +1,61 @@
+# ===== コア =====
+langchain>=0.1.0
+langgraph>=0.0.20
+langchain-community>=0.0.13
+ollama>=0.1.0
+
+# ===== 記憶層 =====
+redis>=5.0.0
+duckdb>=0.9.0
+psycopg2-binary>=2.9.0
+pinecone-client>=2.2.0
+# または qdrant-client>=1.7.0
+
+# ===== 連想記憶 =====
+neo4j>=5.14.0
+py2neo>=2021.2.3
+
+# ===== 感情分析 =====
+transformers>=4.30.0
+torch>=2.0.0
+
+# ===== 3D可視化 =====
+plotly>=5.17.0
+networkx>=3.1
+kaleido>=0.2.1  # PNG/PDFエクスポート用
+
+# ===== ユーティリティ =====
+numpy>=1.24.0
+pandas>=2.0.0
+pyyaml>=6.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+
+# ===== Web検索 =====
+google-serper>=0.1.0
+
+# ===== v3.1新機能: REST/WebSocket API =====
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.6
+websockets==12.0
+passlib[bcrypt]==1.7.4
+
+# ===== v3.1新機能: MCP =====
+mcp==0.9.0
+
+# ===== v3.1新機能: 自律サーチ =====
+apscheduler==3.10.4
+wikipedia==1.4.0
+
+# ===== 音声・画像（オプション） =====
+# openai-whisper>=20230314
+# pillow>=10.0.0
+
+# ===== ETL（オプション） =====
+# apache-airflow>=2.7.0
+
+# ===== 監視（オプション） =====
+# prometheus-client>=0.17.0
