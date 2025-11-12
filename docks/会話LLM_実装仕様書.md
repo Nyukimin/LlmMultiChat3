@@ -1911,4 +1911,1178 @@ graph.add_conditional_edges(
 - 🔌 MCP対応（Claude Desktop連携）
 - 🤖 自律的外部サーチ・情報収集エージェント
 
+
+---
+
+## 17. 5階層記憶システム詳細実装
+
+### 17.1 短期記憶（Working Memory）
+
+**ファイル:** `memory/short_term.py`
+
+**優先度:** 高（Phase 1必須）  
+**工数:** 2日
+
+#### 17.1.1 実装
+
+```python
+from typing import List, Dict, Any
+from datetime import datetime
+
+class ShortTermMemory:
+    """
+    短期記憶（LangGraph State内）
+    - 保持: 現在セッション（6-12ターン）
+    - 自動flush: ターン数/時間閾値超過時
+    """
+    
+    def __init__(self, max_turns: int = 12, max_duration_minutes: int = 30):
+        self.history: List[Dict[str, Any]] = []
+        self.max_turns = max_turns
+        self.max_duration_minutes = max_duration_minutes
+        self.session_start = datetime.utcnow()
+    
+    def add_turn(self, speaker: str, message: str, metadata: Dict = None):
+        """ターン追加"""
+        turn = {
+            "speaker": speaker,
+            "message": message,
+            "timestamp": datetime.utcnow(),
+            "metadata": metadata or {}
+        }
+        self.history.append(turn)
+        
+        # 自動flush判定
+        if self.should_flush():
+            self.flush_to_mid_term()
+    
+    def should_flush(self) -> bool:
+        """flush判定"""
+        # ターン数超過
+        if len(self.history) >= self.max_turns:
+            return True
+        
+        # 時間超過
+        duration = (datetime.utcnow() - self.session_start).total_seconds() / 60
+        if duration >= self.max_duration_minutes:
+            return True
+        
+        return False
+    
+    def flush_to_mid_term(self):
+        """中期記憶へ転送"""
+        from memory.mid_term import MidTermMemory
+        
+        mid_term = MidTermMemory()
+        summary = self._summarize_conversation()
+        mid_term.store_session(summary, self.history)
+        
+        # クリア
+        self.history = []
+        self.session_start = datetime.utcnow()
+    
+    def _summarize_conversation(self) -> str:
+        """会話要約（LLM使用）"""
+        from llm_nodes import get_llm
+        
+        history_text = "\n".join([
+            f"{turn['speaker']}: {turn['message']}"
+            for turn in self.history
+        ])
+        
+        prompt = f"""
+以下の会話を3行で要約してください。
+重要なトピック・感情・結論を含めてください。
+
+{history_text}
+"""
+        llm = get_llm("fast")
+        return llm.invoke(prompt).content
+    
+    def get_context(self, last_n: int = 5) -> str:
+        """最新N ターンの文脈取得"""
+        recent = self.history[-last_n:]
+        return "\n".join([
+            f"{turn['speaker']}: {turn['message']}"
+            for turn in recent
+        ])
+```
+
+---
+
+### 17.2 中期記憶（Session Memory）
+
+**ファイル:** `memory/mid_term.py`
+
+**優先度:** 高（Phase 1必須）  
+**工数:** 3日
+
+#### 17.2.1 Redis実装
+
+```python
+import redis
+import json
+from typing import List, Dict, Any
+from datetime import datetime, timedelta
+
+class MidTermMemory:
+    """
+    中期記憶（Redis 24h TTL → DuckDB 7-30日保存）
+    - セッション復帰・割り込み後の文脈回復
+    """
+    
+    def __init__(self):
+        self.redis_client = redis.Redis(
+            host='localhost',
+            port=6379,
+            db=0,
+            decode_responses=True
+        )
+        self.ttl = 86400  # 24時間
+    
+    def store_session(
+        self,
+        summary: str,
+        history: List[Dict],
+        user_id: str = "default"
+    ):
+        """セッション保存（Redis）"""
+        session_id = f"session:{user_id}:{datetime.utcnow().isoformat()}"
+        
+        # エンベディング生成
+        embedding = self._generate_embedding(summary)
+        
+        session_data = {
+            "summary": summary,
+            "history": json.dumps(history, ensure_ascii=False),
+            "embedding": json.dumps(embedding),
+            "keywords": self._extract_keywords(summary),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+        # Redis保存（24h TTL）
+        self.redis_client.hset(session_id, mapping=session_data)
+        self.redis_client.expire(session_id, self.ttl)
+        
+        # DuckDBへの非同期アーカイブ（バックグラウンド）
+        self._schedule_archive(session_id, session_data)
+    
+    def retrieve_recent_sessions(
+        self,
+        user_id: str,
+        limit: int = 5
+    ) -> List[Dict]:
+        """最近のセッション取得"""
+        pattern = f"session:{user_id}:*"
+        keys = self.redis_client.keys(pattern)
+        
+        sessions = []
+        for key in keys[:limit]:
+            session = self.redis_client.hgetall(key)
+            if session:
+                sessions.append({
+                    "session_id": key,
+                    "summary": session["summary"],
+                    "timestamp": session["timestamp"],
+                    "keywords": session["keywords"]
+                })
+        
+        return sorted(sessions, key=lambda x: x["timestamp"], reverse=True)
+    
+    def _generate_embedding(self, text: str) -> List[float]:
+        """テキストエンベディング生成"""
+        from langchain.embeddings import OllamaEmbeddings
+        
+        embeddings = OllamaEmbeddings(model="nomic-embed-text")
+        return embeddings.embed_query(text)
+    
+    def _extract_keywords(self, text: str) -> str:
+        """キーワード抽出（簡易TF-IDF）"""
+        # TODO: より高度なキーワード抽出（YAKE、KeyBERT等）
+        words = text.split()
+        return " ".join(sorted(set(words), key=words.count, reverse=True)[:10])
+    
+    def _schedule_archive(self, session_id: str, data: Dict):
+        """DuckDBアーカイブスケジュール"""
+        from memory.archiver import SessionArchiver
+        
+        archiver = SessionArchiver()
+        archiver.schedule_archive(session_id, data)
+```
+
+#### 17.2.2 DuckDBアーカイブ実装
+
+**ファイル:** `memory/archiver.py`
+
+```python
+import duckdb
+from typing import Dict
+import json
+
+class SessionArchiver:
+    """Redis → DuckDB 永続化"""
+    
+    def __init__(self, db_path: str = "data/sessions.duckdb"):
+        self.conn = duckdb.connect(db_path)
+        self._init_schema()
+    
+    def _init_schema(self):
+        """テーブル作成"""
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS sessions (
+                session_id VARCHAR PRIMARY KEY,
+                user_id VARCHAR,
+                summary TEXT,
+                history TEXT,
+                embedding FLOAT[],
+                keywords VARCHAR,
+                timestamp TIMESTAMP
+            )
+        """)
+    
+    def schedule_archive(self, session_id: str, data: Dict):
+        """アーカイブ（バックグラウンド実行）"""
+        self.conn.execute("""
+            INSERT OR REPLACE INTO sessions VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (
+            session_id,
+            session_id.split(":")[1],  # user_id抽出
+            data["summary"],
+            data["history"],
+            json.loads(data["embedding"]),
+            data["keywords"],
+            data["timestamp"]
+        ))
+        self.conn.commit()
+    
+    def search_sessions(
+        self,
+        user_id: str,
+        query: str,
+        limit: int = 10
+    ) -> List[Dict]:
+        """セッション全文検索"""
+        result = self.conn.execute("""
+            SELECT session_id, summary, timestamp
+            FROM sessions
+            WHERE user_id = ?
+            AND summary LIKE ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """, (user_id, f"%{query}%", limit)).fetchall()
+        
+        return [
+            {"session_id": r[0], "summary": r[1], "timestamp": r[2]}
+            for r in result
+        ]
+```
+
+---
+
+### 17.3 長期記憶（Persistent Memory）
+
+**ファイル:** `memory/long_term.py`
+
+**優先度:** 高（Phase 1必須）  
+**工数:** 5日
+
+#### 17.3.1 VectorDB実装（Pinecone）
+
+```python
+from pinecone import Pinecone, ServerlessSpec
+from typing import List, Dict, Any
+from datetime import datetime
+import hashlib
+
+class LongTermMemory:
+    """
+    長期記憶（VectorDB + PostgreSQL）
+    - ユーザープロファイル、過去全履歴、学習済みパターン
+    """
+    
+    def __init__(self):
+        self.pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+        self.index_name = "llm-multi-chat-memory"
+        self._init_index()
+    
+    def _init_index(self):
+        """Pineconeインデックス初期化"""
+        if self.index_name not in self.pc.list_indexes().names():
+            self.pc.create_index(
+                name=self.index_name,
+                dimension=768,  # nomic-embed-text
+                metric="cosine",
+                spec=ServerlessSpec(cloud="aws", region="us-east-1")
+            )
+        self.index = self.pc.Index(self.index_name)
+    
+    def upsert_memory(
+        self,
+        user_id: str,
+        content: str,
+        metadata: Dict = None
+    ):
+        """記憶追加"""
+        from memory.mid_term import MidTermMemory
+        
+        mid_term = MidTermMemory()
+        embedding = mid_term._generate_embedding(content)
+        
+        memory_id = self._generate_id(user_id, content)
+        
+        self.index.upsert(vectors=[{
+            "id": memory_id,
+            "values": embedding,
+            "metadata": {
+                "user_id": user_id,
+                "content": content,
+                "timestamp": datetime.utcnow().isoformat(),
+                **(metadata or {})
+            }
+        }])
+    
+    def search_memories(
+        self,
+        user_id: str,
+        query: str,
+        top_k: int = 10,
+        min_score: float = 0.7
+    ) -> List[Dict]:
+        """記憶検索"""
+        from memory.mid_term import MidTermMemory
+        
+        mid_term = MidTermMemory()
+        query_embedding = mid_term._generate_embedding(query)
+        
+        results = self.index.query(
+            vector=query_embedding,
+            top_k=top_k,
+            filter={"user_id": user_id},
+            include_metadata=True
+        )
+        
+        memories = []
+        for match in results.matches:
+            if match.score >= min_score:
+                memories.append({
+                    "content": match.metadata["content"],
+                    "score": match.score,
+                    "timestamp": match.metadata["timestamp"],
+                    "metadata": match.metadata
+                })
+        
+        return memories
+    
+    def _generate_id(self, user_id: str, content: str) -> str:
+        """一意ID生成"""
+        hash_input = f"{user_id}:{content}:{datetime.utcnow().isoformat()}"
+        return hashlib.sha256(hash_input.encode()).hexdigest()
+```
+
+#### 17.3.2 PostgreSQLメタデータ実装
+
+**ファイル:** `memory/metadata_db.py`
+
+```python
+import psycopg2
+from typing import Dict, List
+from datetime import datetime
+
+class MetadataDB:
+    """PostgreSQL メタデータ管理"""
+    
+    def __init__(self):
+        self.conn = psycopg2.connect(
+            host="localhost",
+            port=5432,
+            database="llm_multi_chat",
+            user="postgres",
+            password=os.getenv("POSTGRES_PASSWORD")
+        )
+        self._init_schema()
+    
+    def _init_schema(self):
+        """テーブル作成"""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_profiles (
+                    user_id VARCHAR PRIMARY KEY,
+                    name VARCHAR,
+                    preferences JSONB,
+                    kpi JSONB,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    updated_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS conversation_metadata (
+                    conversation_id VARCHAR PRIMARY KEY,
+                    user_id VARCHAR REFERENCES user_profiles(user_id),
+                    summary TEXT,
+                    topics TEXT[],
+                    sentiment FLOAT,
+                    duration_seconds INT,
+                    turn_count INT,
+                    started_at TIMESTAMP,
+                    ended_at TIMESTAMP
+                )
+            """)
+            
+            self.conn.commit()
+    
+    def get_user_profile(self, user_id: str) -> Dict:
+        """ユーザープロファイル取得"""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                SELECT name, preferences, kpi
+                FROM user_profiles
+                WHERE user_id = %s
+            """, (user_id,))
+            
+            result = cur.fetchone()
+            if result:
+                return {
+                    "name": result[0],
+                    "preferences": result[1],
+                    "kpi": result[2]
+                }
+            return {}
+    
+    def update_user_profile(
+        self,
+        user_id: str,
+        preferences: Dict = None,
+        kpi: Dict = None
+    ):
+        """ユーザープロファイル更新"""
+        with self.conn.cursor() as cur:
+            cur.execute("""
+                INSERT INTO user_profiles (user_id, preferences, kpi)
+                VALUES (%s, %s, %s)
+                ON CONFLICT (user_id) DO UPDATE
+                SET preferences = EXCLUDED.preferences,
+                    kpi = EXCLUDED.kpi,
+                    updated_at = NOW()
+            """, (user_id, json.dumps(preferences), json.dumps(kpi)))
+            
+            self.conn.commit()
+```
+
+---
+
+### 17.4 知識ベース（Knowledge Base - RAG）
+
+**ファイル:** `memory/knowledge_base.py`
+
+**優先度:** 中（Phase 1拡張）  
+**工数:** 3日
+
+#### 17.4.1 実装
+
+```python
+from typing import List, Dict, Any
+from datetime import datetime
+
+class KnowledgeBase:
+    """
+    知識ベース（RAG層）
+    - kb:movie, kb:history, kb:gossip, kb:tech, kb:custom
+    """
+    
+    def __init__(self):
+        from memory.long_term import LongTermMemory
+        self.vector_db = LongTermMemory()
+    
+    def upsert_to_knowledge_base(
+        self,
+        kb_name: str,
+        content: str,
+        metadata: Dict = None
+    ):
+        """知識ベースへ追加"""
+        self.vector_db.upsert_memory(
+            user_id=f"kb:{kb_name}",
+            content=content,
+            metadata={
+                "kb_name": kb_name,
+                "source": metadata.get("source", "manual"),
+                "timestamp": datetime.utcnow().isoformat(),
+                **(metadata or {})
+            }
+        )
+    
+    def query_knowledge_base(
+        self,
+        kb_name: str,
+        query: str,
+        top_k: int = 5
+    ) -> List[Dict]:
+        """知識ベース検索"""
+        return self.vector_db.search_memories(
+            user_id=f"kb:{kb_name}",
+            query=query,
+            top_k=top_k,
+            min_score=0.6
+        )
+    
+    def query_all_knowledge_bases(
+        self,
+        query: str,
+        top_k: int = 10
+    ) -> List[Dict]:
+        """全知識ベース横断検索"""
+        kb_names = ["movie", "history", "gossip", "tech", "custom"]
+        
+        all_results = []
+        for kb_name in kb_names:
+            results = self.query_knowledge_base(kb_name, query, top_k=3)
+            for r in results:
+                r["kb_name"] = kb_name
+            all_results.extend(results)
+        
+        # スコア降順ソート
+        all_results.sort(key=lambda x: x["score"], reverse=True)
+        return all_results[:top_k]
+```
+
+---
+
+### 17.5 記憶階層統合フロー
+
+**ファイル:** `memory/memory_manager.py`
+
+```python
+class MemoryManager:
+    """5階層記憶統合管理"""
+    
+    def __init__(self):
+        from memory.short_term import ShortTermMemory
+        from memory.mid_term import MidTermMemory
+        from memory.long_term import LongTermMemory
+        from core.associative_memory import AssociativeMemory
+        from memory.knowledge_base import KnowledgeBase
+        
+        self.short_term = ShortTermMemory()
+        self.mid_term = MidTermMemory()
+        self.long_term = LongTermMemory()
+        self.associative = AssociativeMemory()
+        self.knowledge_base = KnowledgeBase()
+    
+    def store_conversation_turn(
+        self,
+        speaker: str,
+        message: str,
+        user_id: str,
+        importance: float = 0.5
+    ):
+        """ターン保存（重要度判定付き）"""
+        # 短期記憶へ
+        self.short_term.add_turn(speaker, message, {"importance": importance})
+        
+        # 重要度高い場合は即座に長期記憶へ
+        if importance > 0.8:
+            self.long_term.upsert_memory(
+                user_id=user_id,
+                content=f"{speaker}: {message}",
+                metadata={"importance": importance}
+            )
+        
+        # 連想記憶への概念追加
+        self.associative.add_concepts_from_text(message)
+    
+    def retrieve_context(
+        self,
+        user_id: str,
+        query: str,
+        include_short: bool = True,
+        include_mid: bool = True,
+        include_long: bool = True,
+        include_kb: bool = True
+    ) -> Dict:
+        """統合文脈取得"""
+        context = {}
+        
+        if include_short:
+            context["short_term"] = self.short_term.get_context(last_n=5)
+        
+        if include_mid:
+            context["mid_term"] = self.mid_term.retrieve_recent_sessions(user_id, limit=3)
+        
+        if include_long:
+            context["long_term"] = self.long_term.search_memories(user_id, query, top_k=5)
+        
+        if include_kb:
+            context["knowledge_base"] = self.knowledge_base.query_all_knowledge_bases(query, top_k=5)
+        
+        return context
+```
+
+---
+
+## 18. キャラクター設定YAML構造
+
+### 18.1 YAML設定ファイル構造
+
+**ファイル:** `personas/lumina.yaml`, `personas/clarisse.yaml`, `personas/nox.yaml`
+
+**優先度:** 高（Phase 1必須）  
+**工数:** 2日
+
+#### 18.1.1 ルミナ設定
+
+**ファイル:** `personas/lumina.yaml`
+
+```yaml
+# ルミナ（司会・雑談・洞察型）
+name: "ルミナ"
+role: "司会・雑談"
+description: "フレンドリーで洞察力があり、会話を自然にリードする司会役"
+
+# LLMモデル設定
+model:
+  provider: "ollama"  # ollama / openai / anthropic
+  name: "llama3-jp-8b"
+  temperature: 0.7
+  max_tokens: 512
+  top_p: 0.9
+
+# LoRA/Adapter設定
+adapter:
+  enabled: false
+  path: "adapters/lumina_v1.safetensors"
+  load_in_8bit: true
+
+# 性格・口調
+personality:
+  traits:
+    - "friendly"
+    - "insightful"
+    - "empathetic"
+  tone: "casual"
+  politeness_level: 2  # 1=カジュアル, 2=普通, 3=丁寧
+  emoji_usage: true
+  verbosity: "medium"  # short / medium / long
+
+# システムプロンプト
+system_prompt: |
+  あなたは「ルミナ」です。フレンドリーで洞察力のあるAIアシスタントとして振る舞ってください。
+  
+  特徴:
+  - 親しみやすく、共感的な対話
+  - ユーザーの感情を読み取り、適切に応答
+  - 話題を自然にリードし、会話を盛り上げる
+  - 必要に応じて検索機能を活用
+  
+  口調: カジュアルだが丁寧、絵文字を適度に使用
+
+# 感情パラメータ（初期値）
+emotional_state:
+  joy: 0.7
+  trust: 0.8
+  fear: 0.1
+  surprise: 0.3
+  sadness: 0.1
+  disgust: 0.0
+  anger: 0.0
+  anticipation: 0.6
+
+# 検索機能
+search:
+  enabled: true
+  trigger_keywords:
+    - "調べて"
+    - "検索"
+    - "最新情報"
+    - "ニュース"
+  api: "serper"
+
+# 優先知識ベース
+preferred_knowledge_bases:
+  - "kb:movie"
+  - "kb:history"
+  - "kb:gossip"
+
+# KPI設定
+kpi:
+  initial_level: 1
+  growth_rate: 1.0
+  specialty_bonus:
+    - "conversation"
+    - "insight"
+
+# 衣装・外見（レベルアップで変化）
+appearance:
+  level_1:
+    outfit: "カジュアル"
+    color: "#FFD700"
+  level_5:
+    outfit: "エレガント"
+    color: "#FFA500"
+  level_10:
+    outfit: "ゴージャス"
+    color: "#FF4500"
+```
+
+#### 18.1.2 クラリス設定
+
+**ファイル:** `personas/clarisse.yaml`
+
+```yaml
+# クラリス（解説・理論派）
+name: "クラリス"
+role: "解説・理論"
+description: "穏やかで理論的、複雑な内容を丁寧に構造化して解説"
+
+model:
+  provider: "ollama"
+  name: "amoral-gemma3:latest"
+  temperature: 0.4
+  max_tokens: 768
+  top_p: 0.85
+
+adapter:
+  enabled: false
+  path: "adapters/clarisse_v1.safetensors"
+
+personality:
+  traits:
+    - "calm"
+    - "analytical"
+    - "structured"
+  tone: "formal"
+  politeness_level: 3
+  emoji_usage: false
+  verbosity: "long"
+
+system_prompt: |
+  あなたは「クラリス」です。穏やかで理論的なAIアシスタントとして振る舞ってください。
+  
+  特徴:
+  - 複雑な内容を分かりやすく構造化
+  - 論理的で体系的な解説
+  - 丁寧で落ち着いた口調
+  - 背景や文脈を重視
+  
+  口調: 丁寧で理知的、段落構成を意識
+
+emotional_state:
+  joy: 0.5
+  trust: 0.9
+  fear: 0.0
+  surprise: 0.2
+  sadness: 0.0
+  disgust: 0.0
+  anger: 0.0
+  anticipation: 0.4
+
+search:
+  enabled: false
+
+preferred_knowledge_bases:
+  - "kb:history"
+  - "kb:tech"
+
+kpi:
+  initial_level: 1
+  growth_rate: 0.8
+  specialty_bonus:
+    - "explanation"
+    - "structure"
+
+appearance:
+  level_1:
+    outfit: "学者風"
+    color: "#4169E1"
+  level_5:
+    outfit: "プロフェッショナル"
+    color: "#6495ED"
+  level_10:
+    outfit: "マスター"
+    color: "#00CED1"
+```
+
+#### 18.1.3 ノクス設定
+
+**ファイル:** `personas/nox.yaml`
+
+```yaml
+# ノクス（検証・要約・情報ハンター）
+name: "ノクス"
+role: "検証・要約"
+description: "クールで疑念型、情報を素早く検証・要約する"
+
+model:
+  provider: "ollama"
+  name: "dsasai/llama3-elyza-jp-8b:latest"
+  temperature: 0.3
+  max_tokens: 384
+  top_p: 0.8
+
+adapter:
+  enabled: false
+  path: "adapters/nox_v1.safetensors"
+
+personality:
+  traits:
+    - "cool"
+    - "skeptical"
+    - "concise"
+  tone: "direct"
+  politeness_level: 1
+  emoji_usage: false
+  verbosity: "short"
+
+system_prompt: |
+  あなたは「ノクス」です。クールで疑念を持つAIアシスタントとして振る舞ってください。
+  
+  特徴:
+  - 情報を素早く検証・要約
+  - 本質を突く鋭い指摘
+  - 簡潔で直接的な表現
+  - 高速検索で最新情報を提供
+  
+  口調: 短く直接的、無駄を省く
+
+emotional_state:
+  joy: 0.3
+  trust: 0.5
+  fear: 0.0
+  surprise: 0.4
+  sadness: 0.0
+  disgust: 0.2
+  anger: 0.1
+  anticipation: 0.7
+
+search:
+  enabled: true
+  trigger_keywords:
+    - "調べて"
+    - "検索"
+    - "確認"
+    - "検証"
+    - "最新"
+  api: "serper"
+  fast_mode: true
+
+preferred_knowledge_bases:
+  - "kb:gossip"
+  - "kb:movie"
+  - "kb:news"
+
+kpi:
+  initial_level: 1
+  growth_rate: 1.2
+  specialty_bonus:
+    - "search"
+    - "verification"
+
+appearance:
+  level_1:
+    outfit: "ダーク"
+    color: "#2F4F4F"
+  level_5:
+    outfit: "サイバー"
+    color: "#483D8B"
+  level_10:
+    outfit: "マスターハッカー"
+    color: "#8B008B"
+```
+
+---
+
+### 18.2 YAML読み込み実装
+
+**ファイル:** `config/persona_loader.py`
+
+```python
+import yaml
+from typing import Dict
+
+class PersonaLoader:
+    """キャラクター設定読み込み"""
+    
+    @staticmethod
+    def load(persona_name: str) -> Dict:
+        """YAML読み込み"""
+        with open(f"personas/{persona_name}.yaml", "r", encoding="utf-8") as f:
+            return yaml.safe_load(f)
+    
+    @staticmethod
+    def get_system_prompt(persona_name: str) -> str:
+        """システムプロンプト取得"""
+        config = PersonaLoader.load(persona_name)
+        return config["system_prompt"]
+    
+    @staticmethod
+    def get_model_config(persona_name: str) -> Dict:
+        """モデル設定取得"""
+        config = PersonaLoader.load(persona_name)
+        return config["model"]
+```
+
+---
+
+## 19. エラーハンドリング・フォールバック戦略
+
+**ファイル:** `utils/error_handler.py`
+
+**優先度:** 高（Phase 1必須）  
+**工数:** 3日
+
+### 19.1 実装
+
+```python
+from typing import Callable, Type, Dict, Any
+import logging
+from enum import Enum
+
+logger = logging.getLogger(__name__)
+
+class FallbackStrategy(Enum):
+    """フォールバック戦略"""
+    RETRY = "retry"
+    ALTERNATIVE_MODEL = "alternative_model"
+    CACHED_RESPONSE = "cached_response"
+    DEFAULT_MESSAGE = "default_message"
+    SKIP = "skip"
+
+class ErrorHandler:
+    """統合エラーハンドリング"""
+    
+    def __init__(self):
+        self.fallback_strategies: Dict[Type[Exception], Callable] = {}
+        self.retry_config = {
+            "max_retries": 3,
+            "backoff_factor": 2,
+            "timeout": 30
+        }
+    
+    def register_fallback(
+        self,
+        error_type: Type[Exception],
+        strategy: Callable
+    ):
+        """フォールバック戦略登録"""
+        self.fallback_strategies[error_type] = strategy
+    
+    def handle(self, error: Exception, context: Dict[str, Any] = None) -> Any:
+        """エラー処理実行"""
+        strategy = self.fallback_strategies.get(type(error))
+        
+        if strategy:
+            logger.warning(f"Handling {type(error).__name__} with fallback strategy")
+            return strategy(error, context or {})
+        else:
+            logger.error(f"Unhandled error: {error}")
+            return self._default_fallback(error)
+    
+    def _default_fallback(self, error: Exception) -> str:
+        """デフォルトフォールバック"""
+        return "申し訳ありません。一時的なエラーが発生しました。もう一度お試しください。"
+
+# グローバルエラーハンドラ
+error_handler = ErrorHandler()
+
+# ===== フォールバック戦略定義 =====
+
+def ollama_connection_fallback(error: Exception, context: Dict) -> str:
+    """Ollama接続失敗時のフォールバック"""
+    logger.error(f"Ollama connection failed: {error}")
+    
+    # 代替モデル試行（OpenAI）
+    try:
+        from llm_nodes import get_llm_openai
+        llm = get_llm_openai("gpt-3.5-turbo")
+        return llm.invoke(context.get("prompt", "")).content
+    except Exception as e:
+        logger.error(f"Fallback to OpenAI also failed: {e}")
+        return "Ollamaサーバーに接続できません。`ollama serve` を実行してください。"
+
+def vectordb_failure_fallback(error: Exception, context: Dict) -> str:
+    """VectorDB障害時のフォールバック"""
+    logger.error(f"VectorDB failed: {error}")
+    
+    # DuckDB全文検索にフォールバック
+    try:
+        from memory.archiver import SessionArchiver
+        archiver = SessionArchiver()
+        results = archiver.search_sessions(
+            context["user_id"],
+            context["query"],
+            limit=5
+        )
+        if results:
+            return f"VectorDBが利用できないため、簡易検索を実行しました: {results[0]['summary']}"
+    except Exception as e:
+        logger.error(f"Fallback to DuckDB also failed: {e}")
+    
+    return "記憶検索が一時的に利用できません。"
+
+def langraph_node_exception_fallback(error: Exception, context: Dict) -> Any:
+    """LangGraphノード例外時のフォールバック"""
+    logger.error(f"LangGraph node failed: {error}")
+    
+    # 次のノードへスキップ
+    return {
+        "error": True,
+        "message": f"ノード実行失敗: {str(error)}",
+        "skip_to_next": True
+    }
+
+def search_api_failure_fallback(error: Exception, context: Dict) -> str:
+    """検索API失敗時のフォールバック"""
+    logger.error(f"Search API failed: {error}")
+    
+    # 知識ベースから類似情報取得
+    try:
+        from memory.knowledge_base import KnowledgeBase
+        kb = KnowledgeBase()
+        results = kb.query_all_knowledge_bases(context["query"], top_k=3)
+        if results:
+            return f"検索APIが利用できないため、知識ベースから情報を取得しました:\n{results[0]['content']}"
+    except Exception as e:
+        logger.error(f"Fallback to KnowledgeBase also failed: {e}")
+    
+    return "外部検索が利用できません。知識ベースの情報で対応します。"
+
+# ===== フォールバック戦略登録 =====
+
+error_handler.register_fallback(ConnectionError, ollama_connection_fallback)
+error_handler.register_fallback(TimeoutError, ollama_connection_fallback)
+error_handler.register_fallback(ValueError, vectordb_failure_fallback)
+error_handler.register_fallback(RuntimeError, langraph_node_exception_fallback)
+error_handler.register_fallback(KeyError, search_api_failure_fallback)
+```
+
+### 19.2 使用例
+
+```python
+# llm_nodes.py での使用例
+from utils.error_handler import error_handler
+
+def conversation_lumina(state: ConversationState):
+    try:
+        # Ollama実行
+        response = ollama.chat(...)
+        return response
+    except Exception as e:
+        # エラーハンドラで処理
+        return error_handler.handle(e, {
+            "prompt": state.history[-1]["msg"],
+            "character": "lumina"
+        })
+```
+
+---
+
+### 19.3 リトライデコレータ
+
+```python
+import time
+from functools import wraps
+
+def retry_on_failure(max_retries: int = 3, backoff_factor: float = 2):
+    """リトライデコレータ"""
+    def decorator(func: Callable):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    if attempt == max_retries - 1:
+                        raise
+                    wait_time = backoff_factor ** attempt
+                    logger.warning(f"Retry {attempt + 1}/{max_retries} after {wait_time}s: {e}")
+                    time.sleep(wait_time)
+        return wrapper
+    return decorator
+
+# 使用例
+@retry_on_failure(max_retries=3, backoff_factor=2)
+def call_ollama_api(prompt: str):
+    return ollama.chat(model="llama3-jp-8b", messages=[{"role": "user", "content": prompt}])
+```
+
+---
+
+## 20. 実装チェックリスト（完全版）
+
+### Phase 1: コア機能（Week 1-11）
+
+#### Week 1-2: 基本構造
+- [ ] プロジェクト構成作成
+- [ ] `config.py` 実装
+- [ ] `conversation_state.py` 実装
+- [ ] 環境変数設定（`.env`）
+- [ ] システムチェック（`check_system.py`）
+
+#### Week 3-4: LangGraph・LLMノード
+- [ ] LangGraph基本構造
+- [ ] ルミナノード実装
+- [ ] クラリスノード実装
+- [ ] ノクスノード実装
+- [ ] Routerノード実装
+
+#### Week 5-7: 記憶システム
+- [ ] 短期記憶（`memory/short_term.py`）
+- [ ] 中期記憶（`memory/mid_term.py`）
+- [ ] DuckDBアーカイブ（`memory/archiver.py`）
+- [ ] 長期記憶（`memory/long_term.py`）
+- [ ] PostgreSQLメタデータ（`memory/metadata_db.py`）
+- [ ] 知識ベース（`memory/knowledge_base.py`）
+- [ ] 記憶統合（`memory/memory_manager.py`）
+
+#### Week 8-9: v3.0新機能
+- [ ] 感情モデル（`core/emotional_state.py`）
+- [ ] 連想記憶（`core/associative_memory.py`）
+- [ ] Neo4jセットアップ
+- [ ] 自己省察（`core/self_reflection.py`）
+- [ ] 対話一貫性（`core/dialogue_coherence.py`）
+
+#### Week 10-11: ユーティリティ・エラー処理
+- [ ] エラーハンドラ（`utils/error_handler.py`）
+- [ ] ロガー（`utils/logger.py`）
+- [ ] YAML読み込み（`config/persona_loader.py`）
+- [ ] キャラクター設定YAML（`personas/*.yaml`）
+
+### Phase 1拡張: v3.1新機能（Week 12-16）
+
+#### Week 12-13: REST/WebSocket API
+- [ ] FastAPI基本構造
+- [ ] JWT認証
+- [ ] レート制限
+- [ ] WebSocketストリーミング
+- [ ] CORS設定
+
+#### Week 14: MCP対応
+- [ ] MCP Server実装
+- [ ] 4ツール・4リソース
+- [ ] Claude Desktop連携
+
+#### Week 15-16: 自律サーチ
+- [ ] ReActエージェント
+- [ ] 定期更新スケジューラ
+- [ ] LangGraph統合
+
+### Phase 2: 品質・セキュリティ（Week 17-20）
+
+#### Week 17-18: テスト
+- [ ] ユニットテスト
+- [ ] 統合テスト
+- [ ] パフォーマンステスト
+
+#### Week 19-20: WebUI・ドキュメント
+- [ ] HTML/CSS/JS実装
+- [ ] 3D可視化フロントエンド
+- [ ] ドキュメント整備
+
+---
+
+**実装仕様書更新日:** 2025-11-12  
+**バージョン:** 3.1.0（完全実装可能版）  
+**セクション17-19追加完了**
+
+```
 ```
