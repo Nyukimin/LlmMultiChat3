@@ -3048,15 +3048,393 @@ class Plugin:
 - **翻訳プラグイン**: DeepL API
 - **カレンダー連携**: Google Calendar API
 
+## 22. REST/WebSocket API 完全設計 🌐
+
+**優先度: 高（Phase 1拡張）**  
+**工数: 2週間**
+
+外部アプリケーションが会話LLMシステムを利用できるようにするためのRESTful API + WebSocket APIを提供。
+
+### 22.1 技術スタック
+
+- **FastAPI**: Python 3.10+ 高速Webフレームワーク
+- **Pydantic**: データバリデーション
+- **WebSocket**: リアルタイム双方向通信
+- **JWT**: 認証・認可
+- **Redis**: レート制限・セッション管理
+
+### 22.2 エンドポイント設計
+
+#### 22.2.1 認証エンドポイント
+
+```python
+POST /api/v1/auth/login
+    - ユーザーログイン
+    - JWT Access Token発行
+    - ロール: free/pro/admin
+
+POST /api/v1/auth/refresh
+    - リフレッシュトークン発行
+```
+
+#### 22.2.2 会話エンドポイント
+
+```python
+POST /api/v1/chat
+    - メッセージ送信（同期）
+    - Parameters:
+        - message: ユーザーメッセージ
+        - thread_id: スレッドID（継続会話）
+        - character: 指名キャラクター（省略時は自動選択）
+        - temperature: 0.0-2.0
+        - max_tokens: 最大トークン数
+    
+WS /api/v1/stream
+    - WebSocketストリーミング会話
+    - Protocol:
+        1. Client → Server: {"type": "auth", "token": "JWT"}
+        2. Server → Client: {"type": "auth_success"}
+        3. Client → Server: {"type": "message", "content": "..."}
+        4. Server → Client: {"type": "chunk", "content": "..."} (streaming)
+        5. Server → Client: {"type": "done", "message_id": "..."}
+```
+
+#### 22.2.3 記憶エンドポイント
+
+```python
+POST /api/v1/memories/search
+    - 記憶検索
+    - Parameters:
+        - query: 検索クエリ
+        - memory_types: [short_term, mid_term, long_term, associative, knowledge_base]
+        - limit: 最大件数（1-100）
+
+DELETE /api/v1/memories/{memory_id}
+    - 記憶削除（GDPR対応）
+```
+
+#### 22.2.4 キャラクターエンドポイント
+
+```python
+GET /api/v1/characters
+    - キャラクター一覧
+
+POST /api/v1/characters
+    - カスタムキャラクター追加（Admin only）
+```
+
+#### 22.2.5 データポータビリティ
+
+```python
+POST /api/v1/export
+    - 会話履歴エクスポート（GDPR対応）
+    - Formats: JSON/CSV/Markdown
+```
+
+#### 22.2.6 システムエンドポイント
+
+```python
+GET /api/v1/health
+    - ヘルスチェック
+
+GET /api/v1/metrics
+    - メトリクス取得（Admin only）
+```
+
+### 22.3 エラーハンドリング
+
+```python
+class APIError(Exception):
+    status_code: int
+    detail: str
+
+# カスタムエラー
+- RateLimitExceeded (429)
+- InvalidToken (401)
+- Forbidden (403)
+- NotFound (404)
+- InternalServerError (500)
+```
+
+### 22.4 レート制限
+
+```python
+# Redis使用
+- Free: 100リクエスト/分
+- Pro: 1000リクエスト/分
+- Response: 429 Too Many Requests
+```
+
+### 22.5 CORS設定
+
+```python
+allow_origins: ["http://localhost:3000", "https://yourdomain.com"]
+allow_credentials: True
+allow_methods: ["*"]
+allow_headers: ["*"]
+```
+
+---
+
+## 23. MCP (Model Context Protocol) 対応 🔌
+
+**優先度: 中（Phase 1拡張）**  
+**工数: 1週間**
+
+Anthropicが提唱する標準化されたAIモデルと外部ツール間の通信プロトコル。Claude Desktopなど既存エコシステムとの統合を可能にする。
+
+### 23.1 MCP概要
+
+**利点**:
+- 標準化されたインターフェース
+- ツールの動的追加
+- セキュアな外部連携
+- 既存エコシステムとの統合
+
+### 23.2 MCP Server実装
+
+```python
+from mcp.server import Server, Tool, Resource
+from mcp.types import TextContent
+
+class LlmMultiChatMCPServer(Server):
+    """会話LLMシステムをMCP Serverとして公開"""
+    
+    def __init__(self):
+        super().__init__(name="llm-multi-chat-server")
+        self.register_tools()
+        self.register_resources()
+    
+    # ツール登録
+    @tool()
+    async def chat_with_character(
+        character: str,
+        message: str,
+        thread_id: str | None = None
+    ) -> str:
+        """特定キャラクターと会話"""
+        ...
+    
+    @tool()
+    async def search_memories(
+        query: str,
+        limit: int = 10
+    ) -> list[dict]:
+        """記憶検索"""
+        ...
+    
+    @tool()
+    async def get_knowledge_base(
+        kb_name: str,
+        topic: str
+    ) -> str:
+        """知識ベース検索"""
+        ...
+    
+    @tool()
+    async def autonomous_search(
+        query: str,
+        max_results: int = 5
+    ) -> str:
+        """自律的Web検索（セクション24参照）"""
+        ...
+    
+    # リソース登録
+    @resource("character://lumina")
+    async def get_lumina_info() -> TextContent:
+        """ルミナのプロフィール"""
+        ...
+```
+
+### 23.3 公開ツール一覧
+
+| ツール名 | 説明 | 引数 |
+|---------|------|------|
+| `chat_with_character` | キャラクター指名会話 | character, message, thread_id |
+| `search_memories` | 記憶検索 | query, limit |
+| `get_knowledge_base` | 知識ベース検索 | kb_name, topic |
+| `autonomous_search` | 自律的Web検索 | query, max_results |
+
+### 23.4 公開リソース一覧
+
+| リソースURI | 説明 |
+|------------|------|
+| `character://lumina` | ルミナのプロフィール |
+| `character://clarisse` | クラリスのプロフィール |
+| `character://nox` | ノクスのプロフィール |
+| `memory://recent` | 最近の記憶 |
+
+### 23.5 MCP統合アーキテクチャ
+
+```
+外部アプリケーション (Claude Desktop, VSCode)
+    ↓ MCP Protocol
+MCP Server (stdio)
+    ↓
+会話LLMシステム (LangGraph + 5階層記憶)
+```
+
+---
+
+## 24. 自律的外部サーチ・情報収集エージェント 🤖
+
+**優先度: 高（Phase 1拡張）**  
+**工数: 2週間**
+
+会話LLMシステムが自律的にWeb検索・情報収集を行い、知識ベースを自動更新する。
+
+### 24.1 トリガー条件
+
+1. **ユーザー質問時**: 既存知識ベースに情報がない場合
+2. **定期実行**: 日次/週次で最新情報を収集
+3. **手動トリガー**: 管理者による明示的な更新指示
+
+### 24.2 自律サーチエージェント設計
+
+```python
+from langchain.agents import create_react_agent
+
+class AutonomousSearchAgent:
+    """自律的外部サーチ・情報収集エージェント"""
+    
+    tools = [
+        "web_search",           # Serper API
+        "knowledge_base_query", # 既存KB検索
+        "wikipedia_search",     # Wikipedia
+        "save_to_kb"           # KB保存
+    ]
+    
+    async def search_and_collect(
+        query: str,
+        max_depth: int = 3,
+        save_to_kb: bool = True
+    ) -> dict:
+        """
+        自律的検索・情報収集
+        
+        Steps:
+        1. 既存知識ベース検索
+        2. 不足時→Web検索
+        3. Wikipedia検索で詳細情報取得
+        4. 重要情報を知識ベースに保存
+        5. 最終回答生成
+        """
+        ...
+```
+
+### 24.3 定期更新スケジューラ
+
+```python
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+class KnowledgeBaseUpdater:
+    """知識ベース定期更新"""
+    
+    # 毎朝6時: ニュース・トレンド更新
+    @cron(hour=6, minute=0)
+    async def update_gossip():
+        queries = ["今日の主要ニュース", "Twitterトレンド"]
+        ...
+    
+    # 毎週日曜日: 映画情報更新
+    @cron(day_of_week='sun', hour=3)
+    async def update_movies():
+        queries = ["今週公開の映画", "話題の映画ランキング"]
+        ...
+    
+    # 毎月1日: 技術情報更新
+    @cron(day=1, hour=2)
+    async def update_tech():
+        queries = ["最新AI技術トレンド", "GitHub人気リポジトリ"]
+        ...
+```
+
+### 24.4 LangGraphへの統合
+
+```python
+def create_autonomous_search_graph():
+    """自律サーチ統合LangGraph"""
+    
+    graph = StateGraph(State)
+    
+    # ノード
+    graph.add_node("check_kb", check_knowledge_base)
+    graph.add_node("search", autonomous_search)
+    graph.add_node("respond", generate_response)
+    
+    # 条件分岐
+    graph.add_conditional_edges(
+        "check_kb",
+        lambda s: "search" if s["need_search"] else "respond"
+    )
+    
+    return graph.compile()
+```
+
+### 24.5 検索フロー
+
+```
+ユーザー質問
+    ↓
+既存知識ベース検索
+    ↓
+┌──────────────┐
+│ 情報十分？   │
+└──────────────┘
+  ↓ No      ↓ Yes
+自律Web検索  → 応答生成
+  ↓
+Wikipedia検索
+  ↓
+KB自動保存
+  ↓
+応答生成
+```
+
+### 24.6 カテゴリ自動分類
+
+```python
+def classify_category(query: str) -> str:
+    """カテゴリ分類"""
+    
+    keywords = {
+        "movie": ["映画", "ドラマ", "俳優"],
+        "history": ["歴史", "年表", "出来事"],
+        "gossip": ["トレンド", "ニュース", "話題"],
+        "tech": ["技術", "プログラミング", "AI"]
+    }
+    
+    # LLMベースの高度な分類も可能
+    ...
+```
+
+### 24.7 重複排除・品質フィルタ
+
+```python
+async def deduplicate_and_filter(results: list) -> list:
+    """重複排除・品質フィルタ"""
+    
+    # 1. embedding類似度で重複排除
+    unique_results = remove_duplicates_by_embedding(results)
+    
+    # 2. 信頼性スコアでフィルタ
+    filtered = filter_by_credibility_score(unique_results, threshold=0.7)
+    
+    # 3. 最新性でランキング
+    sorted_results = sort_by_freshness(filtered)
+    
+    return sorted_results[:10]
+```
+
 ---
 
 **実装優先順位サマリー:**
 
 | Phase | 機能 | 開発期間 |
 |-------|------|----------|
-| **Phase 1** | v3.0コア機能（現在） | 3ヶ月 |
+| **Phase 1** | v3.1コア機能 + API・MCP・自律サーチ | 5ヶ月（20週） |
 | **Phase 2** | セキュリティ・エラーハンドリング・テスト | 2ヶ月 |
-| **Phase 3** | パフォーマンス最適化・API・モニタリング | 2ヶ月 |
+| **Phase 3** | パフォーマンス最適化・モニタリング | 2ヶ月 |
 | **Phase 4** | 国際化・音声インターフェース | 2ヶ月 |
 | **Phase 5** | モバイルアプリ・画像生成 | 3ヶ月 |
 
@@ -3064,9 +3442,14 @@ class Plugin:
 
 ---
 
-**ドキュメント更新日:** 2025-11-11
+**ドキュメント更新日:** 2025-11-12
 **担当:** LUMINA SYSTEM DESIGN TEAM
-**バージョン:** 3.0.0（人間らしい対話システム完全版）
+**バージョン:** 3.1.0（API・MCP・自律サーチ対応版）
+
+**バージョン3.1.0の新機能:**
+- 🌐 **REST/WebSocket API完全設計** - FastAPI実装、JWT認証、ストリーミング対応（セクション22）
+- 🔌 **MCP (Model Context Protocol) 対応** - Claude Desktopなど外部エコシステムとの統合（セクション23）
+- 🤖 **自律的外部サーチ・情報収集エージェント** - 知識ベース自動更新、定期実行スケジューラ（セクション24）
 
 **バージョン3.0.0の主な追加機能:**
 - ✨ 感情モデル（8基本感情 + 気分履歴）
@@ -3078,12 +3461,11 @@ class Plugin:
 - ⏱️ 自然なタイミング・待ち時間
 - 🔄 トピック追跡とスムーズな転換
 
-**前バージョン（2.0.0）からの変更:**
-- 永続的記憶システムの詳細化
-- マルチLLM・マルチユーザー対応の追加
-- プラグインアーキテクチャの導入
-- マルチモーダル対応の明記
-- セキュリティ・GDPR対応の強化
-- **人間らしい対話のための8つの高度機能を追加**
+**バージョン履歴:**
+- **v3.1.0 (2025-11-12)**: API・MCP・自律サーチ追加（Phase 1拡張）
+- **v3.0.0 (2025-11-11)**: 人間らしい対話システム完全版
+  - 感情モデル、連想記憶、自己省察、対話スタイル調整など8つの高度機能
+- **v2.0.0**: 永続的記憶システム、マルチLLM・マルチユーザー対応
+  - プラグインアーキテクチャ、マルチモーダル対応、GDPR対応
 
 ```
