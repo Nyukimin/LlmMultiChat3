@@ -180,6 +180,19 @@ class MultiLLMChat:
         Returns:
             応答を含む状態辞書
         """
+        # 入力検証
+        from validators import InputValidator
+        try:
+            user_input = InputValidator.validate_user_input(user_input)
+        except Exception as e:
+            self.memory.logger.log_error(e, context="chat_input_validation")
+            return {
+                "response": f"入力検証エラー: {str(e)}",
+                "speaker": "system",
+                "turn": self.conv_state.current_turn,
+                "session_id": self.conv_state.session_id
+            }
+        
         # 会話状態の初期化（必要に応じて）
         if not self.conv_state.history:
             self.conv_state.start_new_session()

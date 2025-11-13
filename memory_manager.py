@@ -51,7 +51,7 @@ class MemorySystemManager:
             'total_sessions': 0
         }
     
-    def add_conversation_turn(self, speaker: str, message: str, 
+    def add_conversation_turn(self, speaker: str, message: str,
                             metadata: Dict = None) -> bool:
         """
         会話ターンを追加（全記憶層に保存）
@@ -65,6 +65,10 @@ class MemorySystemManager:
             成功した場合True
         """
         try:
+            # 入力検証
+            if not InputValidator.validate_speaker_name(speaker):
+                raise ShortTermMemoryError(f"無効な話者名: {speaker}")
+            
             # 短期記憶（会話バッファ）に追加
             self.conversation_buffer.add_turn(speaker, message, metadata)
             

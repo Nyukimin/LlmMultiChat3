@@ -4,6 +4,7 @@ memory/mid_term.py
 
 24時間〜30日のセッション復帰用記憶。
 DuckDBを使用してローカルに永続化。
+Redis キャッシュ層を追加（Phase 2）。
 """
 
 from typing import Dict, Any, List, Optional
@@ -11,18 +12,29 @@ from datetime import datetime, timedelta
 from pathlib import Path
 import json
 from .base import MemoryBackend, MemoryItem, MemoryConfig
+from .redis_cache import get_redis_cache, RedisCache
 
 
 class MidTermMemory(MemoryBackend):
     """中期記憶の実装（DuckDBバックエンド）"""
     
-    def __init__(self, config: MemoryConfig = None, db_path: str = "data/mid_term.db"):
+    def __init__(
+        self,
+        config: MemoryConfig = None,
+        db_path: str = "data/mid_term.db",
+        redis_enabled: bool = True,
+        redis_host: str = 'localhost',
+        redis_port: int = 6379
+    ):
         """
         初期化
         
         Args:
             config: メモリ設定
             db_path: データベースパス
+            redis_enabled: Redisキャッシュを有効化
+            redis_host: Redisホスト
+            redis_port: Redisポート
         """
         super().__init__()
         self.backend_type = "mid_term"
@@ -31,6 +43,11 @@ class MidTermMemory(MemoryBackend):
         
         # データディレクトリ作成
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        
+        # Redisキャッシュ初期化
+        self.redis_cache: Optional[RedisCache] = None
+        if redis_enabled:
+            self.redis_cache = get_redis_cache(host=redis_host, port=redis_port)
         
         # DuckDB接続（Phase 1では簡易実装）
         self.storage: Dict[str, MemoryItem] = {}
@@ -41,7 +58,9 @@ class MidTermMemory(MemoryBackend):
             'total_stores': 0,
             'total_retrievals': 0,
             'total_deletions': 0,
-            'db_size_bytes': 0
+            'db_size_bytes': 0,
+            'redis_hits': 0,
+            'redis_misses': 0,
         }
     
     def _load_from_file(self):
@@ -91,10 +110,22 @@ class MidTermMemory(MemoryBackend):
                     key=lambda k: self.storage[k].accessed_at
                 )
                 del self.storage[oldest_key]
+                # Redisからも削除
+                if self.redis_cache and self.redis_cache.is_available():
+                    self.redis_cache.delete(f"mid_term:{oldest_key}")
             
             # 保存
             self.storage[key] = item
             self.stats['total_stores'] += 1
+            
+            # Redisキャッシュに保存（TTL: 24時間）
+            if self.redis_cache and self.redis_cache.is_available():
+                cache_key = f"mid_term:{key}"
+                self.redis_cache.set(
+                    cache_key,
+                    item.to_dict(),
+                    expire_seconds=86400  # 24時間
+                )
             
             # ファイルに永続化
             self._save_to_file()
@@ -107,7 +138,7 @@ class MidTermMemory(MemoryBackend):
     
     def retrieve(self, key: str) -> Optional[Any]:
         """
-        データを取得
+        データを取得（Redisキャッシュ優先）
         
         Args:
             key: 取得キー
@@ -117,6 +148,21 @@ class MidTermMemory(MemoryBackend):
         """
         self.stats['total_retrievals'] += 1
         
+        # 1. Redisキャッシュから取得試行
+        if self.redis_cache and self.redis_cache.is_available():
+            cache_key = f"mid_term:{key}"
+            cached_data = self.redis_cache.get(cache_key, as_json=True)
+            
+            if cached_data:
+                self.stats['redis_hits'] += 1
+                # MemoryItemオブジェクトに復元
+                item = MemoryItem.from_dict(cached_data)
+                item.update_access()
+                return item.value
+            else:
+                self.stats['redis_misses'] += 1
+        
+        # 2. JSONファイルから取得
         if key in self.storage:
             item = self.storage[key]
             item.update_access()
@@ -127,7 +173,15 @@ class MidTermMemory(MemoryBackend):
                 # 期限切れ
                 del self.storage[key]
                 self._save_to_file()
+                # Redisからも削除
+                if self.redis_cache and self.redis_cache.is_available():
+                    self.redis_cache.delete(f"mid_term:{key}")
                 return None
+            
+            # Redisキャッシュに再登録
+            if self.redis_cache and self.redis_cache.is_available():
+                cache_key = f"mid_term:{key}"
+                self.redis_cache.set(cache_key, item.to_dict(), expire_seconds=86400)
             
             return item.value
         
@@ -143,6 +197,11 @@ class MidTermMemory(MemoryBackend):
         Returns:
             成功した場合True
         """
+        # Redisから削除
+        if self.redis_cache and self.redis_cache.is_available():
+            self.redis_cache.delete(f"mid_term:{key}")
+        
+        # JSONファイルから削除
         if key in self.storage:
             del self.storage[key]
             self.stats['total_deletions'] += 1

@@ -100,6 +100,36 @@ class Logger:
         }
         self.logger.error(json.dumps(error_data, ensure_ascii=False))
     
+    def log_info(self, message: str, context: str = ""):
+        """
+        情報ログを記録
+        
+        Args:
+            message: ログメッセージ
+            context: コンテキスト
+        """
+        log_data = {
+            "timestamp": datetime.now().isoformat(),
+            "message": message,
+            "context": context
+        }
+        self.logger.info(json.dumps(log_data, ensure_ascii=False))
+    
+    def log_warning(self, message: str, context: str = ""):
+        """
+        警告ログを記録
+        
+        Args:
+            message: 警告メッセージ
+            context: コンテキスト
+        """
+        log_data = {
+            "timestamp": datetime.now().isoformat(),
+            "message": message,
+            "context": context
+        }
+        self.logger.warning(json.dumps(log_data, ensure_ascii=False))
+    
     def log_system_event(self, event: str, details: Dict = None):
         """
         システムイベントを記録
