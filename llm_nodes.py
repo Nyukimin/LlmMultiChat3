@@ -168,6 +168,12 @@ class NoxNode(LLMNode):
         if needs_search and self.config.enable_search:
             search_result = self._perform_search(current_input)
         
+        # 検索結果テキスト生成
+        if search_result:
+            search_result_text = "検索結果:\n" + search_result + "\n"
+        else:
+            search_result_text = ""
+        
         # 会話履歴のフォーマット
         history_text = self._format_history(history)
         
@@ -186,7 +192,7 @@ class NoxNode(LLMNode):
 
 ユーザーの入力: {current_input}
 
-{f"検索結果:\n{search_result}\n" if search_result else ""}
+{search_result_text}
 上記を踏まえて、正確で簡潔な返答をしてください。
 返答のみを出力してください。"""
 

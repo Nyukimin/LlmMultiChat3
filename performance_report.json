@@ -1,0 +1,65 @@
+{
+  "timestamp": "2025-11-13T13:04:49.417222",
+  "total_elapsed_time": 0.6571106000046711,
+  "tests": [
+    {
+      "test_name": "memory_initialization",
+      "elapsed_time": 0.008414699987042695,
+      "status": "success"
+    },
+    {
+      "test_name": "conversation_turn_save",
+      "turns_count": 50,
+      "elapsed_time": 0.0009552999981679022,
+      "avg_time_per_turn": 1.9105999963358046e-05,
+      "status": "success"
+    },
+    {
+      "test_name": "session_management",
+      "sessions_count": 10,
+      "elapsed_time": 0.06989690000773408,
+      "avg_time_per_session": 0.006989690000773407,
+      "status": "success"
+    },
+    {
+      "test_name": "character_kpi_operations",
+      "characters_count": 3,
+      "operations_per_char": 100,
+      "elapsed_time": 0.4464886000205297,
+      "avg_time_per_operation": 0.0014882953334017658,
+      "status": "success"
+    },
+    {
+      "test_name": "knowledge_base_operations",
+      "items_added": 50,
+      "searches_performed": 10,
+      "elapsed_time": 6.980000762268901e-05,
+      "status": "success"
+    },
+    {
+      "test_name": "file_io_operations",
+      "operations_count": 50,
+      "elapsed_time": 0.07529350000550039,
+      "avg_time_per_operation": 0.0015058700001100078,
+      "status": "success"
+    },
+    {
+      "test_name": "full_workflow",
+      "elapsed_time": 0.012155199976405129,
+      "status": "success"
+    }
+  ],
+  "summary": {
+    "total_tests": 7,
+    "successful": 7,
+    "failed": 0,
+    "slowest_test": {
+      "name": "character_kpi_operations",
+      "time": 0.4464886000205297
+    },
+    "fastest_test": {
+      "name": "knowledge_base_operations",
+      "time": 6.980000762268901e-05
+    }
+  }
+}
