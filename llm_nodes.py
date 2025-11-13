@@ -32,7 +32,12 @@ class LLMNode:
     
     def _call_ollama(self, prompt: str, model_key: str = None, max_retries: int = 3) -> str:
         """Ollama APIを呼び出し（リトライロジック付き）"""
+        from metrics import get_metrics_collector
+        metrics = get_metrics_collector()
+        
         model = self.config.models.get(model_key or self.model_key)
+        start_time = time.time()
+        retry_count = 0
         
         for attempt in range(max_retries):
             try:
@@ -44,15 +49,35 @@ class LLMNode:
                     model=model,
                     messages=[{"role": "user", "content": prompt}]
                 )
+                
+                # 成功時のメトリクス記録
+                duration_ms = (time.time() - start_time) * 1000
+                metrics.record_llm_call(
+                    duration_ms=duration_ms,
+                    character=self.character_name,
+                    success=True,
+                    retry_count=retry_count
+                )
+                
                 self.logger.log_system_event(
                     "llm_call_success",
                     {"character": self.character_name, "model": model}
                 )
                 return response['message']['content']
             except Exception as e:
+                retry_count += 1
                 self.logger.log_error(e, context=f"_call_ollama_attempt_{attempt+1}")
+                
                 if attempt == max_retries - 1:
                     # 最終リトライ失敗時はフォールバック
+                    duration_ms = (time.time() - start_time) * 1000
+                    metrics.record_llm_call(
+                        duration_ms=duration_ms,
+                        character=self.character_name,
+                        success=False,
+                        retry_count=retry_count
+                    )
+                    metrics.record_llm_fallback(self.character_name)
                     return self._get_fallback_response()
                 # 指数バックオフ
                 time.sleep(2 ** attempt)

@@ -17,6 +17,7 @@ from llm_nodes import LuminaNode, ClarisNode, NoxNode, RouterNode
 from memory_manager import MemorySystemManager
 from exceptions import LLMNodeError
 from utils import Logger
+from metrics import get_metrics_collector
 
 
 class GraphState(TypedDict):
@@ -42,6 +43,10 @@ class MultiLLMChat:
         # 記憶システムの初期化
         self.memory = MemorySystemManager()
         self.memory.initialize_characters()
+        
+        # メトリクス収集の初期化
+        self.metrics = get_metrics_collector()
+        self.metrics.record_session_start()
         
         # キャラクターノードの初期化
         self.lumina_node = LuminaNode(self.config)
@@ -228,8 +233,23 @@ class MultiLLMChat:
         if self.conv_state.session_id:
             self.memory.save_session(self.conv_state.session_id)
         
+        # メトリクスレポート出力
+        print("\n" + self.metrics.get_performance_report())
+        
+        # メトリクスエクスポート
+        self.metrics.record_session_end()
+        filepath = self.metrics.export_to_json()
+        print(f"\nメトリクスをエクスポート: {filepath}")
+        
+        # HTMLダッシュボード生成
+        from dashboard import generate_html_report
+        html_path = generate_html_report(self.metrics.get_summary())
+        print(f"HTMLレポート生成: {html_path}")
+        
         # 新しいセッション開始
         self.conv_state = ConversationState()
+        self.metrics.reset()
+        self.metrics.record_session_start()
         print("会話をリセットしました。")
     
     def get_history(self) -> list:

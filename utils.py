@@ -11,6 +11,7 @@ import os
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
+from logging.handlers import RotatingFileHandler
 
 
 class Logger:
@@ -33,9 +34,14 @@ class Logger:
         
         # ハンドラの設定
         if not self.logger.handlers:
-            # ファイルハンドラ
-            log_file = self.log_dir / f"chat_{datetime.now().strftime('%Y%m%d')}.log"
-            file_handler = logging.FileHandler(log_file, encoding='utf-8')
+            # RotatingFileHandlerに変更（ログローテーション対応）
+            log_file = self.log_dir / "chat.log"
+            file_handler = RotatingFileHandler(
+                log_file,
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5,
+                encoding='utf-8'
+            )
             file_handler.setLevel(log_level)
             
             # コンソールハンドラ
