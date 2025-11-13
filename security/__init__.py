@@ -41,6 +41,8 @@ from security.models import (
     PasswordResetRequest,
     PasswordReset
 )
+from security.user_manager import UserManager
+from security.role_manager import RoleManager
 
 __all__ = [
     "JWTManager",
@@ -52,7 +54,9 @@ __all__ = [
     "RefreshTokenRequest",
     "UserProfile",
     "PasswordResetRequest",
-    "PasswordReset"
+    "PasswordReset",
+    "UserManager",
+    "RoleManager"
 ]
 
 __version__ = "3.0.0"
