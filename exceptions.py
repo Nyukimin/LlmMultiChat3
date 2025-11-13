@@ -246,6 +246,159 @@ class Neo4jError(DatabaseError):
 
 
 # ========================================
+# 認証・認可関連例外（Phase 3）
+# ========================================
+
+class AuthenticationError(LlmMultiChatError):
+    """
+    認証エラー基底クラス
+    
+    JWT、パスワード検証等の認証エラー。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8000"):
+        super().__init__(message, error_code)
+
+
+class TokenExpiredError(AuthenticationError):
+    """
+    トークン期限切れエラー
+    
+    JWTアクセストークンまたはリフレッシュトークンの有効期限切れ。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8100"):
+        super().__init__(message, error_code)
+
+
+class InvalidTokenError(AuthenticationError):
+    """
+    無効なトークンエラー
+    
+    JWT署名検証失敗、不正なトークンフォーマット。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8200"):
+        super().__init__(message, error_code)
+
+
+class TokenGenerationError(AuthenticationError):
+    """
+    トークン生成エラー
+    
+    JWTトークン生成時のエラー。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8300"):
+        super().__init__(message, error_code)
+
+
+class InvalidCredentialsError(AuthenticationError):
+    """
+    無効な認証情報エラー
+    
+    ログイン時のメールアドレス・パスワード不一致。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8400"):
+        super().__init__(message, error_code)
+
+
+class UserAlreadyExistsError(AuthenticationError):
+    """
+    ユーザー既存エラー
+    
+    新規登録時のメールアドレス・ユーザー名重複。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8500"):
+        super().__init__(message, error_code)
+
+
+class UserNotFoundError(AuthenticationError):
+    """
+    ユーザー未検出エラー
+    
+    指定されたユーザーIDまたはメールアドレスが存在しない。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8600"):
+        super().__init__(message, error_code)
+
+
+class PasswordHashingError(AuthenticationError):
+    """
+    パスワードハッシュエラー
+    
+    bcryptハッシュ化処理の失敗。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8700"):
+        super().__init__(message, error_code)
+
+
+class PasswordVerificationError(AuthenticationError):
+    """
+    パスワード検証エラー
+    
+    パスワード検証処理の失敗。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8800"):
+        super().__init__(message, error_code)
+
+
+class InvalidPasswordError(AuthenticationError):
+    """
+    無効なパスワードエラー
+    
+    パスワード強度不足、フォーマット不正。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E8900"):
+        super().__init__(message, error_code)
+
+
+class AuthorizationError(LlmMultiChatError):
+    """
+    認可エラー
+    
+    ロールベースアクセス制御（RBAC）での権限不足。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E9000"):
+        super().__init__(message, error_code)
+
+
+class InsufficientPermissionsError(AuthorizationError):
+    """
+    権限不足エラー
+    
+    操作に必要な権限がない。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E9100", required_permission: str = ""):
+        self.required_permission = required_permission
+        super().__init__(message, error_code)
+    
+    def __str__(self):
+        if self.required_permission:
+            return f"[{self.error_code}] Required permission: {self.required_permission} - {self.message}"
+        return super().__str__()
+
+
+class InputValidationError(ValidationError):
+    """
+    入力検証エラー（Phase 3拡張）
+    
+    XSS、SQLインジェクション等のセキュリティ検証失敗。
+    """
+    
+    def __init__(self, message: str, error_code: str = "E4100", field: str = ""):
+        super().__init__(message, error_code, field)
+
+
+# ========================================
 # エクスポート・ユーティリティ関連例外
 # ========================================
 
@@ -297,5 +450,21 @@ ERROR_CODES = {
     "E6300": "Neo4jエラー",
     
     # エクスポートエラー (E7xxx)
-    "E7000": "エクスポートエラー"
+    "E7000": "エクスポートエラー",
+    
+    # 認証・認可エラー (E8xxx)
+    "E8000": "認証エラー",
+    "E8100": "トークン期限切れエラー",
+    "E8200": "無効なトークンエラー",
+    "E8300": "トークン生成エラー",
+    "E8400": "無効な認証情報エラー",
+    "E8500": "ユーザー既存エラー",
+    "E8600": "ユーザー未検出エラー",
+    "E8700": "パスワードハッシュエラー",
+    "E8800": "パスワード検証エラー",
+    "E8900": "無効なパスワードエラー",
+    
+    # 認可エラー (E9xxx)
+    "E9000": "認可エラー",
+    "E9100": "権限不足エラー"
 }

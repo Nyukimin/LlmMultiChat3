@@ -34,15 +34,19 @@ python-dotenv>=1.0.0
 # ===== Web検索 =====
 google-serper>=0.1.0
 
-# ===== v3.1新機能: REST/WebSocket API =====
+# ===== Phase 3: REST/WebSocket API =====
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 pydantic==2.5.0
-python-jose[cryptography]==3.3.0
 python-multipart==0.0.6
 websockets==12.0
-passlib[bcrypt]==1.7.4
+
+# ===== Phase 3: JWT認証 =====
+PyJWT==2.8.0
 bcrypt==4.1.2
+passlib[bcrypt]==1.7.4
+
+# ===== Phase 3: レート制限 =====
 slowapi==0.1.9
 
 # ===== v3.1新機能: MCP =====
