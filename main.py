@@ -14,6 +14,7 @@ import operator
 from config import Config
 from conversation_state import ConversationState
 from llm_nodes import LuminaNode, ClarisNode, NoxNode, RouterNode
+from memory_manager import MemorySystemManager
 
 
 class GraphState(TypedDict):
@@ -35,6 +36,10 @@ class MultiLLMChat:
         """初期化"""
         self.config = Config()
         self.conv_state = ConversationState()
+        
+        # 記憶システムの初期化
+        self.memory = MemorySystemManager()
+        self.memory.initialize_characters()
         
         # キャラクターノードの初期化
         self.lumina_node = LuminaNode(self.config)
@@ -161,8 +166,18 @@ class MultiLLMChat:
         self.conv_state.current_turn = result['current_turn']
         self.conv_state.last_speaker = result['last_speaker']
         
-        # 最後の応答を取得
+        # 記憶システムに会話ターンを保存
         last_response = result['history'][-1] if result['history'] else None
+        if last_response:
+            self.memory.add_conversation_turn(
+                session_id=result['session_id'],
+                speaker=last_response['speaker'],
+                content=last_response['msg'],
+                metadata={
+                    'turn': result['current_turn'],
+                    'user_input': user_input
+                }
+            )
         
         return {
             "response": last_response['msg'] if last_response else "",
@@ -173,6 +188,11 @@ class MultiLLMChat:
     
     def reset_conversation(self):
         """会話状態をリセット"""
+        # 現在のセッションを保存
+        if self.conv_state.session_id:
+            self.memory.save_session(self.conv_state.session_id)
+        
+        # 新しいセッション開始
         self.conv_state = ConversationState()
         print("会話をリセットしました。")
     
@@ -200,6 +220,7 @@ def main():
     print("  /reset   - 会話をリセット")
     print("  /export  - 会話履歴をエクスポート")
     print("  /history - 会話履歴を表示")
+    print("  /memory  - 記憶システムサマリー")
     print("  /quit    - 終了")
     print()
     print("=" * 60)
@@ -235,30 +256,40 @@ def main():
                     history = chat_system.get_history()
                     print("\n=== 会話履歴 ===")
                     for turn in history:
-                        speaker = turn.get('speaker', 'Unknown')
-                        msg = turn.get('msg', '')
-                        print(f"{speaker}: {msg}")
+                        print(f"{turn['speaker']}: {turn['msg']}")
                     print("=" * 60)
-                    print()
+                    continue
+                elif command == 'memory':
+                    stats = chat_system.memory.get_statistics()
+                    print("\n=== 記憶システムサマリー ===")
+                    print(f"セッション数: {stats['sessions']['total']}")
+                    print(f"会話ターン数: {stats['conversations']['total']}")
+                    print(f"知識ベース項目数: {stats['knowledge']['total']}")
+                    print("\nキャラクター成長:")
+                    for char in ['lumina', 'claris', 'nox']:
+                        kpi = stats['characters'].get(char, {})
+                        print(f"  {char.capitalize()}: Lv{kpi.get('level', 0)} (KPI: {kpi.get('total_kpi', 0)})")
+                    print("=" * 60)
                     continue
                 else:
-                    print(f"不明なコマンド: {command}")
+                    print(f"不明なコマンド: /{command}")
                     continue
             
-            # チャット処理
-            result = chat_system.chat(user_input)
-            
-            # 応答表示
-            speaker = result['speaker']
-            response = result['response']
-            print(f"\n{speaker}: {response}\n")
+            # 通常の会話処理
+            response = chat_system.chat(user_input)
+            print(f"\n{response['speaker']}: {response['response']}\n")
             
         except KeyboardInterrupt:
-            print("\n\n会話を終了します。")
+            print("\n\n会話を中断しました。")
             break
         except Exception as e:
-            print(f"\nエラーが発生しました: {str(e)}\n")
+            print(f"\nエラーが発生しました: {e}")
             continue
+    
+    # 終了時の処理
+    print("\n記憶システムを保存中...")
+    chat_system.memory.save_all_sessions()
+    print("保存完了。またお会いしましょう！")
 
 
 if __name__ == "__main__":
