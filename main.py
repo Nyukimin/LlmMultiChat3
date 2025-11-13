@@ -15,6 +15,8 @@ from config import Config
 from conversation_state import ConversationState
 from llm_nodes import LuminaNode, ClarisNode, NoxNode, RouterNode
 from memory_manager import MemorySystemManager
+from exceptions import LLMNodeError
+from utils import Logger
 
 
 class GraphState(TypedDict):
@@ -100,16 +102,50 @@ class MultiLLMChat:
         return self.router_node.decide_next(state)
     
     def _lumina_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """ルミナノード処理"""
-        return self.lumina_node.generate(state)
+        """ルミナノード処理（エラーハンドリング付き）"""
+        try:
+            return self.lumina_node.generate(state)
+        except LLMNodeError as e:
+            self.memory.logger.log_error(e, context="lumina_node")
+            # エラー時もフローを継続（フォールバック応答）
+            return {
+                **state,
+                "history": state.get("history", []) + [{
+                    "speaker": "system",
+                    "msg": "申し訳ございません。ルミナの応答生成中にエラーが発生しました。",
+                    "timestamp": datetime.now().isoformat()
+                }]
+            }
     
     def _claris_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """クラリスノード処理"""
-        return self.claris_node.generate(state)
+        """クラリスノード処理（エラーハンドリング付き）"""
+        try:
+            return self.claris_node.generate(state)
+        except LLMNodeError as e:
+            self.memory.logger.log_error(e, context="claris_node")
+            return {
+                **state,
+                "history": state.get("history", []) + [{
+                    "speaker": "system",
+                    "msg": "申し訳ございません。クラリスの応答生成中にエラーが発生しました。",
+                    "timestamp": datetime.now().isoformat()
+                }]
+            }
     
     def _nox_node(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """ノクスノード処理"""
-        return self.nox_node.generate(state)
+        """ノクスノード処理（エラーハンドリング付き）"""
+        try:
+            return self.nox_node.generate(state)
+        except LLMNodeError as e:
+            self.memory.logger.log_error(e, context="nox_node")
+            return {
+                **state,
+                "history": state.get("history", []) + [{
+                    "speaker": "system",
+                    "msg": "申し訳ございません。ノクスの応答生成中にエラーが発生しました。",
+                    "timestamp": datetime.now().isoformat()
+                }]
+            }
     
     def _route_decision(self, state: Dict[str, Any]) -> str:
         """ルーティング決定"""

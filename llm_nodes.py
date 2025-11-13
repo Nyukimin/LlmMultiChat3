@@ -9,9 +9,12 @@ llm_nodes.py
 import ollama
 from typing import Dict, Any, Optional
 from datetime import datetime
+import time
 from config import Config
 import requests
 import json
+from exceptions import LLMNodeError, LLMInvocationError, LLMTimeoutError
+from utils import Logger
 
 
 class LLMNode:
@@ -21,22 +24,48 @@ class LLMNode:
         self.config = config
         self.character_name = "Base"
         self.model_key = "fast"
+        self.logger = Logger()  # ログマネージャー追加
     
     def generate(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """応答生成（サブクラスでオーバーライド）"""
         raise NotImplementedError
     
-    def _call_ollama(self, prompt: str, model_key: str = None) -> str:
-        """Ollama APIを呼び出し"""
+    def _call_ollama(self, prompt: str, model_key: str = None, max_retries: int = 3) -> str:
+        """Ollama APIを呼び出し（リトライロジック付き）"""
         model = self.config.models.get(model_key or self.model_key)
-        try:
-            response = ollama.chat(
-                model=model,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return response['message']['content']
-        except Exception as e:
-            return f"[エラー] {self.character_name}の応答生成に失敗しました: {str(e)}"
+        
+        for attempt in range(max_retries):
+            try:
+                self.logger.log_system_event(
+                    "llm_call_start",
+                    {"character": self.character_name, "model": model, "attempt": attempt + 1}
+                )
+                response = ollama.chat(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}]
+                )
+                self.logger.log_system_event(
+                    "llm_call_success",
+                    {"character": self.character_name, "model": model}
+                )
+                return response['message']['content']
+            except Exception as e:
+                self.logger.log_error(e, context=f"_call_ollama_attempt_{attempt+1}")
+                if attempt == max_retries - 1:
+                    # 最終リトライ失敗時はフォールバック
+                    return self._get_fallback_response()
+                # 指数バックオフ
+                time.sleep(2 ** attempt)
+    
+    def _get_fallback_response(self) -> str:
+        """LLM呼び出し失敗時のフォールバック応答"""
+        fallback_messages = {
+            "ルミナ": "申し訳ございません。一時的な問題で応答を生成できませんでした。もう一度お試しいただけますか？",
+            "クラリス": "技術的な問題により、現在応答を生成できません。しばらくしてから再度お試しください。",
+            "ノクス": "エラーが発生しました。システムの状態を確認中です。少々お待ちください。",
+            "Base": "申し訳ございません。一時的なエラーが発生しました。"
+        }
+        return fallback_messages.get(self.character_name, fallback_messages["Base"])
     
     def _format_history(self, history: list, max_turns: int = 6) -> str:
         """会話履歴をフォーマット"""

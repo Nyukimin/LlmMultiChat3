@@ -10,6 +10,8 @@ from typing import Dict, Any, List, Optional
 from datetime import datetime
 
 from memory import ShortTermMemory, MidTermMemory, LongTermMemory, KnowledgeBase
+from exceptions import ShortTermMemoryError, MidTermMemoryError, LongTermMemoryError
+from utils import Logger
 from memory.base import MemoryConfig
 from memory.short_term import ConversationBuffer
 from memory.mid_term import SessionManager
@@ -28,6 +30,7 @@ class MemorySystemManager:
             config: メモリ設定
         """
         self.config = config or MemoryConfig()
+        self.logger = Logger()  # ログマネージャー追加
         
         # 各記憶システムの初期化
         self.short_term = ShortTermMemory(self.config)
@@ -78,8 +81,8 @@ class MemorySystemManager:
             
             return True
         except Exception as e:
-            print(f"会話ターン追加エラー: {e}")
-            return False
+            self.logger.log_error(e, context="add_conversation_turn")
+            raise ShortTermMemoryError(f"会話ターン追加失敗: {e}") from e
     
     def get_conversation_context(self, max_turns: int = 6) -> str:
         """
@@ -106,12 +109,24 @@ class MemorySystemManager:
         Returns:
             成功した場合True
         """
-        success = self.session_manager.save_session(
-            session_id, history, metadata
-        )
-        if success:
-            self.stats['total_sessions'] += 1
-        return success
+        try:
+            self.logger.log_system_event(
+                "session_save_start",
+                {"session_id": session_id, "turns": len(history)}
+            )
+            success = self.session_manager.save_session(
+                session_id, history, metadata
+            )
+            if success:
+                self.stats['total_sessions'] += 1
+                self.logger.log_system_event(
+                    "session_save_success",
+                    {"session_id": session_id}
+                )
+            return success
+        except Exception as e:
+            self.logger.log_error(e, context="save_session")
+            raise MidTermMemoryError(f"セッション保存失敗: {e}") from e
     
     def load_session(self, session_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -123,7 +138,21 @@ class MemorySystemManager:
         Returns:
             セッション情報、存在しない場合None
         """
-        return self.session_manager.load_session(session_id)
+        try:
+            self.logger.log_system_event(
+                "session_load",
+                {"session_id": session_id}
+            )
+            session = self.session_manager.load_session(session_id)
+            if session:
+                self.logger.log_system_event(
+                    "session_load_success",
+                    {"session_id": session_id}
+                )
+            return session
+        except Exception as e:
+            self.logger.log_error(e, context="load_session")
+            raise MidTermMemoryError(f"セッション読み込み失敗: {e}") from e
     
     def update_character_kpi(self, character: str, kpi_type: str, 
                            value: int = 1) -> bool:
@@ -138,7 +167,21 @@ class MemorySystemManager:
         Returns:
             成功した場合True
         """
-        return self.kpi_manager.increment_kpi(character, kpi_type, value)
+        try:
+            self.logger.log_system_event(
+                "kpi_update",
+                {"character": character, "kpi_type": kpi_type, "value": value}
+            )
+            success = self.kpi_manager.increment_kpi(character, kpi_type, value)
+            if success:
+                self.logger.log_system_event(
+                    "kpi_update_success",
+                    {"character": character, "kpi_type": kpi_type}
+                )
+            return success
+        except Exception as e:
+            self.logger.log_error(e, context="update_character_kpi")
+            raise LongTermMemoryError(f"KPI更新失敗: {e}") from e
     
     def get_character_level(self, character: str) -> int:
         """
@@ -165,7 +208,21 @@ class MemorySystemManager:
         Returns:
             検索結果のリスト
         """
-        return self.knowledge_base.search(query, namespace, limit)
+        try:
+            self.logger.log_system_event(
+                "knowledge_search",
+                {"query": query, "namespace": namespace, "limit": limit}
+            )
+            results = self.knowledge_base.search(query, namespace, limit)
+            self.logger.log_system_event(
+                "knowledge_search_success",
+                {"result_count": len(results)}
+            )
+            return results
+        except Exception as e:
+            self.logger.log_error(e, context="search_knowledge")
+            # 検索失敗時は空リストを返す（システムを止めない）
+            return []
     
     def get_all_stats(self) -> Dict[str, Any]:
         """
