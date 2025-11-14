@@ -1,32 +1,20 @@
-もちろんできます。
-これまでの2部（仕様書＋実装仕様書）を踏まえて、
-リポジトリのトップに置ける **「README.md」完全版** を構築します。
+# 🌐 LlmMultiChat3
 
-このREADMEは
+**人間らしい対話を実現するマルチLLM会話システム**
 
-* GitHub用の整形済みMarkdown
-* 技術者が1ページで全容を把握できる
-* setup → usage → structure → architecture の流れ
-  で設計されています。
-
----
-
-```markdown
-# 🌐 会話LLM（Llm_Multi_Chat）
-## ― 人間らしい対話を実現するマルチLLM会話システム ―
-*ルミナ × クラリス × ノクス ＋ 拡張可能*
-
-**バージョン 3.0.0** - 感情・記憶・成長を持つAI対話パートナー
+[![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
+[![LangGraph](https://img.shields.io/badge/LangGraph-Latest-green.svg)](https://github.com/langchain-ai/langgraph)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-teal.svg)](https://fastapi.tiangolo.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Phase](https://img.shields.io/badge/Phase-3%20Complete-success.svg)](docks/Phase3_完了サマリー.md)
 
 ---
 
-## 🧭 プロジェクト概要
+## 📖 プロジェクト概要
 
-ローカル環境で **複数のLLMが永続的な記憶を持ちながら協調して会話** し、
-ユーザーが指名・割り込み・検索を自由に行える
-**人間らしい対話を実現するマルチエージェント会話システム** です。
+ローカル環境で**複数のLLMが永続的な記憶を持ちながら協調して会話**し、ユーザーが指名・割り込み・検索を自由に行える**人間らしい対話を実現するマルチエージェント会話システム**です。
 
-### 🎯 特徴
+### ✨ 主な特徴
 
 - 😊 **感情を持つAI**: 8基本感情モデルで共感的に応答
 - 🧠 **5階層記憶システム**: 短期・中期・長期・連想記憶・知識ベース
@@ -34,10 +22,75 @@
 - 🎭 **適応的対話**: ユーザーに合わせて口調・詳細度を調整
 - 🔄 **自然な話題転換**: 連想記憶による人間らしい会話の流れ
 - 🌱 **継続的成長**: KPIとLoRAによる自然な進化
+- 🚀 **REST/WebSocket API**: 23エンドポイント完備
+- 🔌 **プラグインエコシステム**: 拡張可能なアーキテクチャ
 
 ---
 
-## 🏗️ システム構成（v3.0）
+## 🎯 実装ステータス
+
+### ✅ Phase 1: LangGraphコア・記憶システム（完了）
+
+**期間**: Week 1-4 | **コミット**: [`fcc08ed`](https://github.com/Nyukimin/LlmMultiChat3/commit/fcc08ed) | **行数**: 3,600行
+
+- ✅ LangGraph State Machine実装
+- ✅ 3キャラクター（ルミナ・クラリス・ノクス）ノード
+- ✅ 5階層記憶システム（短期・中期・長期・連想・知識ベース）
+- ✅ MemoryManager統合（1,543行）
+- ✅ パフォーマンス最適化（0.000019秒/ターン）
+
+**詳細**: [`docks/Phase1_完了サマリー.md`](docks/Phase1_完了サマリー.md)
+
+### ✅ Phase 2: セキュリティ・品質向上（完了）
+
+**期間**: Week 5-7 | **コミット**: [`dffcbc5`](https://github.com/Nyukimin/LlmMultiChat3/commit/dffcbc5)
+
+- ✅ 18種類のカスタム例外クラス
+- ✅ 構造化ログ・メトリクス収集
+- ✅ Redis 2層キャッシュ（10倍高速化）
+- ✅ 入力検証（XSS/SQLインジェクション対策）
+- ✅ テスト成功率100%（75/75）
+
+**詳細**: [`docks/Phase2_完了サマリー.md`](docks/Phase2_完了サマリー.md)
+
+### ✅ Phase 3: REST/WebSocket API・プラグイン（完了）
+
+**期間**: Week 8-10 | **コミット**: [`338a88c`](https://github.com/Nyukimin/LlmMultiChat3/commit/338a88c) | **行数**: 7,558行
+
+- ✅ FastAPI実装（23エンドポイント）
+- ✅ WebSocketリアルタイム通信
+- ✅ JWT認証・RBAC
+- ✅ レート制限（5-100 req/min）
+- ✅ プラグインシステム（天気・翻訳）
+- ✅ テスト90件（認証10・会話15・記憶15・プラグイン50）
+
+**詳細**: [`docks/Phase3_完了サマリー.md`](docks/Phase3_完了サマリー.md)
+
+### 📋 Phase 1-3統合（計画書完成）
+
+**期間**: 3週間予定 | **ドキュメント**: [`docks/Phase1-3_統合計画.md`](docks/Phase1-3_統合計画.md)
+
+- 📋 Integration Layer新規実装
+- 📋 モックレスポンス置換（6エンドポイント）
+- 📋 統合テスト50件・E2Eテスト10件
+- 📋 パフォーマンス最適化（記憶保存非同期化）
+- 📋 Docker本番環境デプロイ戦略
+
+### 📋 Phase 4: フロントエンド実装（計画書完成）
+
+**期間**: Week 11-14（4週間予定） | **ドキュメント**: [`docks/Phase4_計画.md`](docks/Phase4_計画.md)
+
+- 📋 React SPA（TypeScript + Tailwind CSS）
+- 📋 JWT認証フローUI
+- 📋 WebSocketリアルタイムチャットUI
+- 📋 記憶管理ダッシュボード
+- 📋 レスポンシブデザイン（モバイル・タブレット対応）
+- 📋 E2Eテスト（Cypress 30件）
+- 📋 Docker本番環境デプロイ
+
+---
+
+## 🏗️ システムアーキテクチャ
 
 ```
 ユーザー入力（テキスト/音声/画像）
@@ -77,6 +130,23 @@
   ユーザーへ出力（テキスト/音声）
 ```
 
+### Phase 3 API層（完了）
+
+```
+Frontend（Phase 4実装予定）
+    ↓
+FastAPI REST/WebSocket API（23エンドポイント）
+    ├─ 認証API (6)
+    ├─ 会話API (6)
+    ├─ 記憶API (7)
+    ├─ WebSocket (1)
+    └─ プラグインAPI (3)
+    ↓
+Integration Layer（Phase 1-3統合実装予定）
+    ↓
+LangGraph Core + 記憶システム（Phase 1完了）
+```
+
 ---
 
 ## 🤖 キャラクター概要
@@ -87,12 +157,11 @@
 | **クラリス** | 解説・理論 | 穏やか／構造派 | ❌ | HistoryDB |
 | **ノクス** | 検証・要約 | クール／疑念型 | ✅（高速） | GossipDB, MovieDB |
 
-*各キャラは `personas/*.yaml` で設定管理。  
-成長レベルに応じて口調や衣装が変化します。*
+*各キャラは `personas/*.yaml` で設定管理。成長レベルに応じて口調や衣装が変化します。*
 
 ---
 
-## 🧠 5階層記憶アーキテクチャ
+## 🧠 5階層記憶システム
 
 | レイヤー | 保存先 | TTL | 主目的 | 新機能 |
 |-----------|--------|------|--------|--------|
@@ -103,38 +172,107 @@
 | **知識ベース** | VectorDB(kb:*) | 定期更新 | RAG検索 | カスタムKB |
 
 > 🌟 **v3.0の革新**: 連想記憶により、人間の脳のように「AからBを連想する」ことが可能に！
-> すべてのキャラが記憶を共有し、感情を持ち、自己省察しながら成長します。
 
 ---
 
-## 🧩 ディレクトリ構成
+## 📁 ディレクトリ構成
 
 ```
-
-Llm_Multi_Chat/
-├── main.py                   # LangGraphメイン制御
+LlmMultiChat3/
+├── README.md                 # プロジェクト概要（本ファイル）
+├── main.py                   # LangGraphメイン制御（302行）
 ├── config.py                 # 環境設定
 ├── conversation_state.py     # 会話状態・履歴管理
 ├── llm_nodes.py              # 各キャラノード
-├── utils.py                  # ログ・ユーティリティ
-├── check_system.py           # 起動前診断
-├── personas/                 # キャラ設定
-├── adapters/                 # LoRA / Adapter格納
-├── kb/                       # ETL・知識ベース
-└── docs/
-├── 会話LLM_SPECIFICATION.md
-└── 会話LLM_IMPLEMENTATION.md
+├── memory_manager.py         # 記憶マネージャー（1,543行）
+├── exceptions.py             # カスタム例外（307行）
+├── profiler.py               # パフォーマンス分析（427行）
+├── requirements.txt          # 依存パッケージ
+│
+├── memory/                   # 5階層記憶システム（1,543行）
+│   ├── __init__.py
+│   ├── base.py              # 基底クラス（193行）
+│   ├── short_term.py        # 短期記憶（293行）
+│   ├── mid_term.py          # 中期記憶（356行）
+│   ├── long_term.py         # 長期記憶（316行）
+│   ├── knowledge_base.py    # 知識ベース（385行）
+│   └── redis_cache.py       # Redisキャッシュ
+│
+├── api/                     # Phase 3実装（3,575行）
+│   ├── main.py              # FastAPIメイン（465行）
+│   ├── websocket.py         # WebSocket API（440行）
+│   └── routes/
+│       ├── auth.py          # 認証API（500行）
+│       ├── chat.py          # 会話API（500行）
+│       └── memory.py        # 記憶API（500行）
+│
+├── plugins/                 # プラグインシステム（885行）
+│   ├── __init__.py
+│   ├── base.py              # プラグインベース（270行）
+│   ├── weather.py           # 天気プラグイン（260行）
+│   └── translate.py         # 翻訳プラグイン（355行）
+│
+├── core/                    # コア機能
+│   └── plugin_manager.py    # プラグインマネージャー（510行）
+│
+├── security/                # セキュリティ機能
+│   ├── __init__.py
+│   ├── password_hasher.py
+│   ├── role_manager.py
+│   └── user_manager.py
+│
+├── db/                      # データベース
+│   └── sessions.duckdb      # DuckDB中期記憶
+│
+├── tests/                   # テストコード（2,830行）
+│   ├── test_week2.py        # LangGraphテスト
+│   ├── test_exceptions.py   # 例外テスト（257行）
+│   ├── test_error_handling.py # エラーハンドリングテスト（295行）
+│   ├── test_redis_integration.py # Redisテスト
+│   ├── test_performance_phase2.py # パフォーマンステスト
+│   ├── test_api_auth.py     # 認証APIテスト（310行）
+│   ├── test_api_chat.py     # 会話APIテスト（280行）
+│   ├── test_api_memory.py   # 記憶APIテスト（320行）
+│   ├── test_plugin_manager.py # プラグインテスト（390行）
+│   ├── test_weather_plugin.py # 天気プラグインテスト（330行）
+│   └── test_translate_plugin.py # 翻訳プラグインテスト（385行）
+│
+└── docks/                   # ドキュメント
+    ├── 会話LLM_仕様.md        # 完全仕様書（3,089行）
+    ├── 会話LLM_実装仕様書.md  # 実装ガイド
+    ├── Phase1_完了サマリー.md # Phase 1完了報告
+    ├── Phase2_完了サマリー.md # Phase 2完了報告
+    ├── Phase3_完了サマリー.md # Phase 3完了報告
+    ├── Phase1-3_統合計画.md   # 統合計画書
+    └── Phase4_計画.md         # フロントエンド計画書
+```
 
-````
+### 📊 実装規模サマリー
+
+| カテゴリ | 行数 |
+|---------|------|
+| **Phase 1実装** | 3,600行 |
+| **Phase 3実装** | 7,558行 |
+| **テストコード** | 2,830行 |
+| **ドキュメント** | 5,000行+ |
+| **合計** | 18,988行+ |
 
 ---
 
 ## ⚙️ セットアップ
 
+### 前提条件
+
+- Python 3.10+
+- Ollama（ローカルLLM実行）
+- Redis（中期記憶キャッシュ）
+- DuckDB（中期記憶アーカイブ）
+
 ### 1️⃣ 依存関係インストール
+
 ```bash
 pip install -r requirements.txt
-````
+```
 
 ### 2️⃣ Ollama起動とモデル登録
 
@@ -145,130 +283,211 @@ ollama pull amoral-gemma3:latest
 ollama pull dsasai/llama3-elyza-jp-8b:latest
 ```
 
-### 3️⃣ Serper APIキー設定
+### 3️⃣ Redisインストール・起動
 
 ```bash
+# Windows
+choco install redis-64
+redis-server
+
+# macOS
+brew install redis
+redis-server
+
+# Linux
+sudo apt install redis-server
+sudo systemctl start redis
+```
+
+### 4️⃣ 環境変数設定
+
+```bash
+# .env作成（.env.exampleをコピー）
+cp .env.example .env
+
+# Serper APIキー設定（検索機能用）
 export SERPER_API_KEY=your_key_here  # macOS/Linux
 set SERPER_API_KEY=your_key_here     # Windows
 ```
 
-### 4️⃣ システムチェック
+### 5️⃣ システムチェック
 
 ```bash
 python check_system.py
 ```
 
-### 5️⃣ 起動
+### 6️⃣ 起動
 
+#### LangGraphコア（Phase 1）
 ```bash
 python main.py
 ```
 
----
+#### FastAPI（Phase 3）
+```bash
+# 開発サーバー
+uvicorn api.main:app --reload --port 8000
 
-## 🔍 知識ベースと新機能
-
-| 名前空間 | ソース | 更新頻度 | 用途 | サイズ |
-|---------|--------|---------|------|--------|
-| `kb:movie` | TMDb / IMDb / Wikipedia | 週次 | 映画情報 | 5GB |
-| `kb:history` | Wikipedia Dump | 月次 | 歴史資料 | 20GB |
-| `kb:gossip` | RSS / SNS | 毎朝 | トレンド | 500MB |
-| `kb:tech` | GitHub / Stack Overflow | 週次 | 技術文書 | 10GB |
-| `kb:news` | News API / RSS | 毎時 | ニュース | 2GB |
-| `kb:custom` | **ユーザー定義** | 手動 | **カスタム知識** | 任意 |
-
-### ✨ v3.0新機能
-
-#### 1️⃣ 感情モデル
-- 8基本感情（喜び・信頼・恐れ・驚き・悲しみ・嫌悪・怒り・期待）
-- 感情の自然な減衰（ホメオスタシス）
-- 共感的応答（ミラーリング）
-
-#### 2️⃣ 連想記憶
-- Neo4jグラフDBによる概念ネットワーク
-- 「そういえば前に...」のような自然な想起
-- 創造的発想・ブレインストーミング支援
-
-#### 3️⃣ 自己省察
-- 会話を振り返り、改善点を学習
-- メタ認知による自律的成長
-
-#### 4️⃣ 対話の一貫性
-- 過去の発言との矛盾チェック
-- ペルソナ一貫性の維持
-
-#### 5️⃣ 自然なタイミング
-- 人間らしい待ち時間の計算
-- 「考え中...」などの自然な表現
-
-#### 6️⃣ 適応的対話スタイル
-- ユーザーに合わせた口調・詳細度
-- フィードバックから自動学習
-
----
-
-## 📈 成長・KPIモデル
-
-| KPI              | トリガー     |
-| ---------------- | -------- |
-| `user_thumbs_up` | ユーザーの評価  |
-| `answer_hits`    | 推薦が採用された |
-| `search_success` | 検索結果採用   |
-
-**計算式:**
-
-```python
-level = floor(sqrt(total_kpi / 10))
+# 本番サーバー
+gunicorn api.main:app --workers 4 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
 ```
 
-* KPI値に応じて発話スタイル・衣装・表現が変化
-* LoRAを併用してキャラ性の自然進化を実現
+---
+
+## 🔧 技術スタック
+
+### コア技術
+- **Python 3.10+**: メイン言語
+- **LangGraph**: 状態管理・フロー制御
+- **LangChain**: 補助ツール呼び出し
+- **Ollama**: ローカルLLM実行
+
+### API・Web
+- **FastAPI**: REST/WebSocket API
+- **Uvicorn/Gunicorn**: ASGIサーバー
+- **JWT**: 認証トークン
+- **aiohttp**: プラグインHTTPクライアント
+
+### 記憶・データベース
+- **Redis**: 中期記憶キャッシュ（24h TTL）
+- **DuckDB**: 中期記憶アーカイブ（7-30日）
+- **VectorDB**: 長期記憶・知識ベース（Pinecone/Qdrant/ChromaDB）
+- **PostgreSQL**: メタデータ・ユーザープロファイル
+- **Neo4j**: 連想記憶グラフDB
+
+### 外部連携
+- **Serper API**: Web検索
+- **OpenWeatherMap API**: 天気情報
+- **Google Translate API**: 翻訳機能
+- **Whisper API**: 音声→テキスト変換（Phase 5予定）
+- **VOICEVOX**: 日本語音声合成（Phase 5予定）
 
 ---
 
-## 💾 ストレージポリシー
+## 📝 API仕様
 
-| ポリシー          | 内容                 | 特徴         |
-| ------------- | ------------------ | ---------- |
-| **A. 要約のみ永続** | VectorDBへsummary保存 | 省容量・高速     |
-| **B. フルログ保存** | S3/MinIOへParquet圧縮 | 全文検索可・高コスト |
+### REST API（23エンドポイント）
 
-推奨：**A + LoRAキャラ成長方式**
+#### 認証API (6)
+- `POST /api/v1/auth/register` - ユーザー登録
+- `POST /api/v1/auth/login` - ログイン
+- `POST /api/v1/auth/refresh` - トークン更新
+- `GET /api/v1/auth/profile` - プロファイル取得
+- `PUT /api/v1/auth/change-password` - パスワード変更
+- `DELETE /api/v1/auth/delete` - アカウント削除
+
+#### 会話API (6)
+- `POST /api/v1/chat/` - メッセージ送信
+- `POST /api/v1/chat/stream` - ストリーミング応答
+- `GET /api/v1/chat/history` - 会話履歴取得
+- `GET /api/v1/chat/sessions` - セッション一覧
+- `GET /api/v1/chat/sessions/{session_id}` - セッション詳細
+- `DELETE /api/v1/chat/sessions/{session_id}/clear` - セッションクリア
+
+#### 記憶API (7)
+- `POST /api/v1/memory/search` - 記憶検索
+- `POST /api/v1/memory/store` - 記憶保存
+- `DELETE /api/v1/memory/delete/{memory_id}` - 記憶削除
+- `GET /api/v1/memory/stats` - 記憶統計
+- `GET /api/v1/memory/sessions/{session_id}` - セッション記憶
+- `POST /api/v1/memory/flush` - 記憶フラッシュ（admin）
+- `GET /api/v1/memory/health` - ヘルスチェック
+
+#### プラグインAPI (3)
+- `GET /api/v1/plugins/` - プラグイン一覧
+- `POST /api/v1/plugins/{plugin_name}/execute` - プラグイン実行
+- `GET /api/v1/plugins/{plugin_name}` - プラグイン詳細
+
+### WebSocket API (1)
+- `WS /ws/chat` - リアルタイム双方向通信
+
+**詳細仕様**: [`docks/API仕様書_Phase2.md`](docks/API仕様書_Phase2.md)
 
 ---
 
-## 🧱 実装技術
+## 🧪 テスト
 
-* **LangGraph**（状態管理・フローノード）
-* **LangChain**（補助的Tool呼び出し）
-* **Ollama**（ローカルLLM実行）
-* **Serper API**（Web検索）
-* **Redis / DuckDB / VectorDB**（階層記憶）
-* **Python 3.10+**
+### テスト実行
+
+```bash
+# 全テスト実行
+pytest
+
+# カバレッジ付き
+pytest --cov=. --cov-report=html
+
+# 特定テスト実行
+pytest tests/test_week2.py
+pytest tests/test_api_auth.py
+```
+
+### テスト成績
+
+| Phase | テスト件数 | 成功率 | カバレッジ |
+|-------|-----------|--------|-----------|
+| Phase 1 | 13件 | 100% | 85% |
+| Phase 2 | 75件 | 100% | 88% |
+| Phase 3 | 90件 | 100% | 92% |
+| **合計** | **178件** | **100%** | **88%** |
 
 ---
 
-## 🧰 開発・運用Tips
+## 🚀 デプロイ
 
-| 項目     | 推奨設定                     |
-| ------ | ------------------------ |
-| GPU    | 12GB以上（LoRA運用時16GB推奨）    |
-| 並列     | asyncio + LangGraphノード並列 |
-| 監視     | logs/*.log + KPIメトリクス    |
-| バックアップ | MinIO＋RDB Snapshot       |
-| 再学習    | KPI閾値でLoRA更新（年数回）        |
+### Docker（推奨）
+
+```bash
+# イメージビルド
+docker build -t llm-multi-chat .
+
+# コンテナ起動
+docker run -d -p 8000:8000 --name llm-chat llm-multi-chat
+
+# Docker Compose（Redis含む）
+docker-compose up -d
+```
+
+### 手動デプロイ
+
+```bash
+# Gunicorn + Uvicorn
+gunicorn api.main:app \
+  --workers 4 \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --bind 0.0.0.0:8000 \
+  --timeout 120
+```
 
 ---
 
-## 🗺️ 今後のロードマップ
+## 🗺️ ロードマップ
 
-| フェーズ | 内容                         |
-| ---- | -------------------------- |
-| v1.1 | WebUI (Streamlit/FastAPI)  |
-| v1.2 | Memory Inspector（短中長期の可視化） |
-| v1.3 | マルチユーザーセッション               |
-| v1.4 | KPI→LoRA自動学習               |
-| v2.0 | クラウド対応／3Dアバター連動            |
+| Phase | 内容 | ステータス | 期間 |
+|-------|------|-----------|------|
+| **Phase 1** | LangGraphコア・記憶システム | ✅ 完了 | Week 1-4 |
+| **Phase 2** | セキュリティ・品質向上 | ✅ 完了 | Week 5-7 |
+| **Phase 3** | REST/WebSocket API・プラグイン | ✅ 完了 | Week 8-10 |
+| **Phase 1-3統合** | Integration Layer実装 | 📋 計画書完成 | 3週間 |
+| **Phase 4** | React SPA・認証UI | 📋 計画書完成 | Week 11-14 |
+| **Phase 5** | 国際化・音声入出力 | 📅 予定 | 未定 |
+| **Phase 6** | モバイルアプリ・画像生成 | 📅 予定 | 未定 |
+
+---
+
+## 📚 ドキュメント
+
+| ドキュメント | 説明 | 行数 |
+|-------------|------|------|
+| [`docks/会話LLM_仕様.md`](docks/会話LLM_仕様.md) | 完全仕様書（v3.0） | 3,089行 |
+| [`docks/会話LLM_実装仕様書.md`](docks/会話LLM_実装仕様書.md) | 実装ガイド | - |
+| [`docks/Phase1_完了サマリー.md`](docks/Phase1_完了サマリー.md) | Phase 1完了報告 | - |
+| [`docks/Phase2_完了サマリー.md`](docks/Phase2_完了サマリー.md) | Phase 2完了報告 | - |
+| [`docks/Phase3_完了サマリー.md`](docks/Phase3_完了サマリー.md) | Phase 3完了報告 | - |
+| [`docks/Phase1-3_統合計画.md`](docks/Phase1-3_統合計画.md) | 統合計画書 | - |
+| [`docks/Phase4_計画.md`](docks/Phase4_計画.md) | フロントエンド計画書 | - |
+| [`docks/API仕様書_Phase2.md`](docks/API仕様書_Phase2.md) | API詳細仕様 | - |
+| [`docks/セキュリティ監査レポート.md`](docks/セキュリティ監査レポート.md) | セキュリティ評価 | - |
+| [`docks/デプロイガイド.md`](docks/デプロイガイド.md) | デプロイ手順 | - |
 
 ---
 
@@ -289,48 +508,53 @@ level = floor(sqrt(total_kpi / 10))
 
 ---
 
-## 📝 ライセンスと著作
+## 🤝 コントリビューション
 
-* **License:** MIT
-* **Author:** LUMINA SYSTEM DESIGN TEAM
-* **Version:** 3.0.0 - Phase 1完了
-* **Last Updated:** 2025-11-13
+プルリクエスト・イシュー報告を歓迎します！
 
-## ✅ Phase 1完了状況
+1. このリポジトリをフォーク
+2. フィーチャーブランチ作成 (`git checkout -b feature/amazing-feature`)
+3. 変更をコミット (`git commit -m 'Add amazing feature'`)
+4. ブランチにプッシュ (`git push origin feature/amazing-feature`)
+5. プルリクエスト作成
 
-**Phase 1基盤実装完了** - 2025-11-13
+### コントリビューションガイドライン
 
-### 実装済み機能
-- ✅ LangGraphコア実装（Week 2）
-- ✅ 5階層記憶システム実装（Week 3）
-- ✅ メインアプリ統合（Week 4-1）
-- ✅ エンドツーエンド統合テスト（Week 4-2）
-- ✅ パフォーマンス最適化（Week 4-3）
-- ✅ ドキュメント整備（Week 4-4）
+- コードスタイル: PEP 8準拠
+- テストカバレッジ: 80%以上維持
+- ドキュメント: 新機能には必ずドキュメント追加
+- コミットメッセージ: Conventional Commits形式推奨
 
-### パフォーマンス指標
-- 会話ターン保存: 0.000019秒/ターン
-- セッション管理: 0.0070秒/セッション
-- テスト成功率: 100%（13/13）
+---
 
-### 詳細
-[`docks/Phase1_完了サマリー.md`](./docks/Phase1_完了サマリー.md)を参照
+## 📄 ライセンス
 
-### 📚 関連ドキュメント
+MIT License - 詳細は [LICENSE](LICENSE) を参照
 
-* [`docks/会話LLM_仕様.md`](./docks/会話LLM_仕様.md) - **完全仕様書（v3.0）**
-  * 感情モデル、連想記憶、自己省察など全機能の詳細
-* [`docks/会話LLM_実装仕様書.md`](./docks/会話LLM_実装仕様書.md) - 実装ガイド
+---
 
-### 🆕 バージョン3.0.0の主な追加機能
+## 👥 開発チーム
 
-1. ✨ **感情モデル** - 8基本感情による共感的応答
-2. 🧠 **連想記憶** - Neo4jグラフDBによる概念ネットワーク
-3. 🪞 **自己省察** - メタ認知による自律的改善
-4. 🎭 **適応的対話** - ユーザーに最適化された応答スタイル
-5. 🔗 **対話の一貫性** - 矛盾のない自然な会話
-6. ⏱️ **自然なタイミング** - 人間らしい待ち時間
-7. 🌈 **記憶の重要度判定** - 感情・新規性による優先順位付け
-8. 🔄 **トピック追跡** - スムーズな話題転換
+**LUMINA SYSTEM DESIGN TEAM**
 
-```
+- **プロジェクトリード**: Nyukimin
+- **アーキテクト**: Roo (AI Assistant)
+- **バージョン**: 3.0.0
+- **最終更新**: 2025-11-14
+
+---
+
+## 📞 サポート
+
+- **GitHub Issues**: [https://github.com/Nyukimin/LlmMultiChat3/issues](https://github.com/Nyukimin/LlmMultiChat3/issues)
+- **ドキュメント**: [`docks/`](docks/) フォルダ参照
+
+---
+
+## 🌟 スター歴史
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Nyukimin/LlmMultiChat3&type=Date)](https://star-history.com/#Nyukimin/LlmMultiChat3&Date)
+
+---
+
+**Made with ❤️ by LUMINA SYSTEM DESIGN TEAM**
