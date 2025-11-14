@@ -40,6 +40,7 @@ from exceptions import (
     CharacterNotFoundError,
     LLMError
 )
+from services import chat_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -217,34 +218,30 @@ async def chat(
         HTTPException: 入力検証エラー、LLMエラー等
     """
     try:
-        # TODO: Phase 1のLangGraphコアを使用して会話処理
-        # chat_manager = request.app.state.chat_manager
-        # response = await chat_manager.chat(
-        #     session_id=chat_request.session_id,
-        #     user_id=current_user.user_id,
-        #     user_input=chat_request.user_input,
-        #     character=chat_request.character
-        # )
-        
-        # 一時的なモックレスポンス（Phase 1統合後に削除）
-        mock_response = ChatResponse(
+        # Phase 1-3統合: ChatService呼び出し
+        result = await chat_service.chat(
+            user_id=current_user.user_id,
             session_id=chat_request.session_id,
-            character=chat_request.character or "lumina",
-            response=f"モック応答: {chat_request.user_input} (Phase 1統合後に実装)",
-            metadata={
-                "llm_node": "lumina_node",
-                "model": "mock",
-                "processing_time_ms": 100,
-                "tokens_used": 50
-            }
+            user_input=chat_request.user_input,
+            character=chat_request.character
+        )
+        
+        # レスポンス整形
+        response = ChatResponse(
+            session_id=result['session_id'],
+            character=result['character'],
+            response=result['response'],
+            metadata=result['metadata'],
+            timestamp=result['timestamp']
         )
         
         logger.info(
             f"Chat request processed: "
-            f"user={current_user.user_id}, session={chat_request.session_id}"
+            f"user={current_user.user_id}, session={chat_request.session_id}, "
+            f"character={response.character}"
         )
         
-        return mock_response
+        return response
         
     except InputValidationError as e:
         logger.warning(f"Input validation error: {e.message}")
@@ -304,28 +301,21 @@ async def chat_stream(
     async def generate():
         """SSEストリームジェネレーター."""
         try:
-            # TODO: Phase 1のストリーミング実装を使用
-            # chat_manager = request.app.state.chat_manager
-            # async for chunk in chat_manager.chat_stream(
-            #     session_id=chat_request.session_id,
-            #     user_id=current_user.user_id,
-            #     user_input=chat_request.user_input,
-            #     character=chat_request.character
-            # ):
-            #     yield f"data: {chunk}\n\n"
-            
-            # モックストリーミング（Phase 1統合後に削除）
-            mock_chunks = [
-                "モック",
-                "ストリーミング",
-                "応答です。",
-                "Phase 1統合後に実装"
-            ]
-            
-            for chunk in mock_chunks:
+            # Phase 1-3統合: ChatService ストリーミング呼び出し
+            async for chunk in chat_service.stream_chat(
+                user_id=current_user.user_id,
+                session_id=chat_request.session_id,
+                user_input=chat_request.user_input,
+                character=chat_request.character
+            ):
                 yield f"data: {chunk}\n\n"
             
             yield "data: [DONE]\n\n"
+            
+            logger.info(
+                f"Stream chat completed: "
+                f"user={current_user.user_id}, session={chat_request.session_id}"
+            )
             
         except Exception as e:
             logger.error(f"Streaming error: {e}", exc_info=True)
@@ -375,41 +365,36 @@ async def get_history(
         HTTPException: セッションが存在しない
     """
     try:
-        # TODO: Phase 1の記憶システムから履歴取得
-        # memory_manager = request.app.state.memory_manager
-        # history = await memory_manager.get_session_history(
-        #     session_id=session_id,
-        #     user_id=current_user.user_id,
-        #     limit=limit,
-        #     offset=offset
-        # )
-        
-        # モック履歴（Phase 1統合後に削除）
-        mock_history = ChatHistoryResponse(
+        # Phase 1-3統合: ChatService 履歴取得呼び出し
+        result = await chat_service.get_conversation_history(
+            user_id=current_user.user_id,
             session_id=session_id,
-            messages=[
-                MessageHistory(
-                    role="user",
-                    content="こんにちは",
-                    character=None,
-                    timestamp=datetime.utcnow().isoformat()
-                ),
-                MessageHistory(
-                    role="assistant",
-                    content="こんにちは！何かお手伝いできることはありますか?",
-                    character="lumina",
-                    timestamp=datetime.utcnow().isoformat()
-                )
-            ],
-            total_count=2
+            limit=limit
+        )
+        
+        # レスポンス整形
+        messages = [
+            MessageHistory(
+                role=msg.get('role', 'user'),
+                content=msg.get('content', ''),
+                character=msg.get('character'),
+                timestamp=msg.get('timestamp', datetime.utcnow().isoformat())
+            )
+            for msg in result['history']
+        ]
+        
+        history_response = ChatHistoryResponse(
+            session_id=session_id,
+            messages=messages,
+            total_count=result['total_turns']
         )
         
         logger.info(
             f"History retrieved: user={current_user.user_id}, "
-            f"session={session_id}, count={len(mock_history.messages)}"
+            f"session={session_id}, count={len(messages)}"
         )
         
-        return mock_history
+        return history_response
         
     except SessionNotFoundError as e:
         logger.warning(f"Session not found: {e.message}")
@@ -454,35 +439,35 @@ async def list_sessions(
         SessionListResponse: セッション一覧
     """
     try:
-        # TODO: Phase 1の記憶システムからセッション一覧取得
-        # memory_manager = request.app.state.memory_manager
-        # sessions = await memory_manager.list_sessions(
-        #     user_id=current_user.user_id,
-        #     limit=limit,
-        #     offset=offset
-        # )
+        # Phase 1-3統合: ChatService セッション一覧取得呼び出し
+        result = await chat_service.list_sessions(
+            user_id=current_user.user_id
+        )
         
-        # モックセッション一覧（Phase 1統合後に削除）
-        mock_sessions = SessionListResponse(
-            sessions=[
-                SessionInfo(
-                    session_id="session-123",
-                    user_id=current_user.user_id,
-                    created_at=datetime.utcnow().isoformat(),
-                    last_activity=datetime.utcnow().isoformat(),
-                    message_count=10,
-                    characters_used=["lumina", "clarisse"]
-                )
-            ],
-            total_count=1
+        # レスポンス整形
+        sessions = [
+            SessionInfo(
+                session_id=sess['session_id'],
+                user_id=current_user.user_id,
+                created_at=sess.get('last_activity', datetime.utcnow().isoformat()),
+                last_activity=sess.get('last_activity', datetime.utcnow().isoformat()),
+                message_count=sess.get('turn_count', 0),
+                characters_used=[]  # TODO: キャラクター情報追加
+            )
+            for sess in result['sessions'][offset:offset+limit]
+        ]
+        
+        session_list = SessionListResponse(
+            sessions=sessions,
+            total_count=result['total_sessions']
         )
         
         logger.info(
-            f"Sessions listed: user={current_user.user_id}, "
-            f"count={len(mock_sessions.sessions)}"
+            f"Sessions retrieved: user={current_user.user_id}, "
+            f"count={len(sessions)}"
         )
         
-        return mock_sessions
+        return session_list
         
     except Exception as e:
         logger.error(f"Session listing error: {e}", exc_info=True)
@@ -521,20 +506,25 @@ async def delete_session(
         HTTPException: セッションが存在しない
     """
     try:
-        # TODO: Phase 1の記憶システムからセッション削除
-        # memory_manager = request.app.state.memory_manager
-        # await memory_manager.delete_session(
-        #     session_id=session_id,
-        #     user_id=current_user.user_id
-        # )
+        # Phase 1-3統合: ChatService セッションクリア呼び出し
+        success = await chat_service.clear_session(
+            user_id=current_user.user_id,
+            session_id=session_id
+        )
+        
+        if not success:
+            raise SessionNotFoundError(
+                message=f"Session {session_id} not found",
+                session_id=session_id
+            )
         
         logger.info(
-            f"Session deleted: user={current_user.user_id}, session={session_id}"
+            f"Session cleared: user={current_user.user_id}, session={session_id}"
         )
         
         return {
             "status": "success",
-            "message": f"Session {session_id} deleted successfully"
+            "message": f"Session {session_id} cleared successfully"
         }
         
     except SessionNotFoundError as e:

@@ -37,6 +37,7 @@ from exceptions import (
     MemoryStorageError,
     InvalidMemoryTypeError
 )
+from services import memory_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -232,41 +233,39 @@ async def search_memory(
         HTTPException: 検証エラー等
     """
     try:
-        # TODO: Phase 1の記憶システムを使用
-        # memory_manager = request.app.state.memory_manager
-        # results = await memory_manager.search(
-        #     query=search_request.query,
-        #     memory_types=search_request.memory_types,
-        #     user_id=current_user.user_id,
-        #     session_id=search_request.session_id,
-        #     limit=search_request.limit
-        # )
-        
-        # モック検索結果（Phase 1統合後に削除）
-        mock_results = MemorySearchResponse(
+        # Phase 1-3統合: MemoryService 検索呼び出し
+        results = await memory_service.search(
+            user_id=current_user.user_id,
             query=search_request.query,
-            results=[
-                MemoryItem(
-                    memory_id="mem-123",
-                    memory_type="long_term",
-                    content=f"モック記憶: {search_request.query}に関する情報",
-                    metadata={
-                        "session_id": search_request.session_id,
-                        "user_id": current_user.user_id
-                    },
-                    relevance_score=0.95,
-                    timestamp=datetime.utcnow().isoformat()
-                )
-            ],
-            total_count=1
+            layers=search_request.memory_types,
+            limit=search_request.limit
+        )
+        
+        # レスポンス整形
+        memory_items = [
+            MemoryItem(
+                memory_id=result.get('memory_id', 'unknown'),
+                memory_type=result.get('layer', 'short_term'),
+                content=result.get('content', ''),
+                metadata=result.get('metadata', {}),
+                relevance_score=result.get('relevance_score', 0.0),
+                timestamp=result.get('timestamp', datetime.utcnow().isoformat())
+            )
+            for result in results
+        ]
+        
+        search_response = MemorySearchResponse(
+            query=search_request.query,
+            results=memory_items,
+            total_count=len(memory_items)
         )
         
         logger.info(
             f"Memory search: user={current_user.user_id}, "
-            f"query={search_request.query}, count={len(mock_results.results)}"
+            f"query={search_request.query}, count={len(memory_items)}"
         )
         
-        return mock_results
+        return search_response
         
     except InvalidMemoryTypeError as e:
         logger.warning(f"Invalid memory type: {e.message}")
@@ -315,27 +314,23 @@ async def store_memory(
         HTTPException: 保存エラー
     """
     try:
-        # TODO: Phase 1の記憶システムを使用
-        # memory_manager = request.app.state.memory_manager
-        # memory_id = await memory_manager.store(
-        #     memory_type=store_request.memory_type,
-        #     content=store_request.content,
-        #     user_id=current_user.user_id,
-        #     session_id=store_request.session_id,
-        #     metadata=store_request.metadata
-        # )
-        
-        # モック保存（Phase 1統合後に削除）
-        mock_memory_id = f"mem-{datetime.utcnow().timestamp()}"
+        # Phase 1-3統合: MemoryService 保存呼び出し
+        result = await memory_service.store(
+            user_id=current_user.user_id,
+            session_id=store_request.session_id or f"session-{current_user.user_id}",
+            content=store_request.content,
+            layer=store_request.memory_type,
+            metadata=store_request.metadata
+        )
         
         logger.info(
             f"Memory stored: user={current_user.user_id}, "
-            f"type={store_request.memory_type}, id={mock_memory_id}"
+            f"type={store_request.memory_type}, id={result.get('memory_id')}"
         )
         
         return MemoryStoreResponse(
-            memory_id=mock_memory_id,
-            memory_type=store_request.memory_type
+            memory_id=result.get('memory_id', 'unknown'),
+            memory_type=result.get('layer', store_request.memory_type)
         )
         
     except MemoryStorageError as e:
@@ -382,12 +377,17 @@ async def delete_memory(
         HTTPException: 記憶が存在しない
     """
     try:
-        # TODO: Phase 1の記憶システムを使用
-        # memory_manager = request.app.state.memory_manager
-        # await memory_manager.delete(
-        #     memory_id=memory_id,
-        #     user_id=current_user.user_id
-        # )
+        # Phase 1-3統合: MemoryService 削除呼び出し
+        success = await memory_service.delete(
+            user_id=current_user.user_id,
+            memory_id=memory_id
+        )
+        
+        if not success:
+            raise MemoryNotFoundError(
+                message=f"Memory {memory_id} not found",
+                memory_id=memory_id
+            )
         
         logger.info(
             f"Memory deleted: user={current_user.user_id}, memory_id={memory_id}"
@@ -437,37 +437,27 @@ async def get_memory_stats(
         MemoryStats: 統計情報
     """
     try:
-        # TODO: Phase 1の記憶システムを使用
-        # memory_manager = request.app.state.memory_manager
-        # stats = await memory_manager.get_stats(
-        #     user_id=current_user.user_id
-        # )
+        # Phase 1-3統合: MemoryService 統計取得呼び出し
+        stats_result = await memory_service.get_stats(
+            user_id=current_user.user_id
+        )
         
-        # モック統計（Phase 1統合後に削除）
-        mock_stats = MemoryStats(
-            total_memories=150,
-            by_type={
-                "short_term": 20,
-                "mid_term": 30,
-                "long_term": 80,
-                "associative": 10,
-                "knowledge": 10
-            },
-            by_session={
-                "session-123": 50,
-                "session-456": 100
-            },
-            storage_size_mb=2.5,
-            oldest_memory=datetime.utcnow().isoformat(),
-            newest_memory=datetime.utcnow().isoformat()
+        # レスポンス整形
+        stats = MemoryStats(
+            total_memories=stats_result.get('total_memories', 0),
+            by_type=stats_result.get('by_layer', {}),
+            by_session=stats_result.get('by_session', {}),
+            storage_size_mb=stats_result.get('storage_size_mb', 0.0),
+            oldest_memory=stats_result.get('oldest_memory'),
+            newest_memory=stats_result.get('newest_memory')
         )
         
         logger.info(
             f"Memory stats retrieved: user={current_user.user_id}, "
-            f"total={mock_stats.total_memories}"
+            f"total={stats.total_memories}"
         )
         
-        return mock_stats
+        return stats
         
     except Exception as e:
         logger.error(f"Memory stats error: {e}", exc_info=True)
@@ -502,25 +492,32 @@ async def delete_session_memories(
         dict: 削除結果
     """
     try:
-        # TODO: Phase 1の記憶システムを使用
-        # memory_manager = request.app.state.memory_manager
-        # deleted_count = await memory_manager.delete_session_memories(
-        #     session_id=session_id,
-        #     user_id=current_user.user_id
-        # )
+        # Phase 1-3統合: MemoryService セッション記憶取得→削除
+        session_memories = await memory_service.get_session_memories(
+            user_id=current_user.user_id,
+            session_id=session_id,
+            limit=1000  # 全記憶取得
+        )
         
-        # モック削除（Phase 1統合後に削除）
-        mock_deleted_count = 25
+        deleted_count = 0
+        for memory in session_memories.get('memories', []):
+            memory_id = memory.get('memory_id')
+            if memory_id:
+                await memory_service.delete(
+                    user_id=current_user.user_id,
+                    memory_id=memory_id
+                )
+                deleted_count += 1
         
         logger.info(
             f"Session memories deleted: user={current_user.user_id}, "
-            f"session={session_id}, count={mock_deleted_count}"
+            f"session={session_id}, count={deleted_count}"
         )
         
         return {
             "status": "success",
-            "message": f"Deleted {mock_deleted_count} memories from session {session_id}",
-            "deleted_count": mock_deleted_count
+            "message": f"Deleted {deleted_count} memories from session {session_id}",
+            "deleted_count": deleted_count
         }
         
     except Exception as e:
@@ -554,23 +551,23 @@ async def flush_memory(
         dict: フラッシュ結果
     """
     try:
-        # TODO: Phase 1の記憶システムを使用
-        # memory_manager = request.app.state.memory_manager
-        # flush_result = await memory_manager.flush_short_to_mid()
-        
-        # モックフラッシュ（Phase 1統合後に削除）
-        mock_result = {
-            "status": "success",
-            "message": "Memory flush completed",
-            "flushed_memories": 50,
-            "duration_ms": 1234
-        }
-        
-        logger.info(
-            f"Memory flush executed by admin: {current_user.user_id}"
+        # Phase 1-3統合: MemoryService フラッシュ呼び出し
+        flush_result = await memory_service.flush(
+            user_id=current_user.user_id,
+            confirm=True
         )
         
-        return mock_result
+        logger.warning(
+            f"Memory flush executed by admin: user={current_user.user_id}, "
+            f"flushed={flush_result.get('flushed_memories', 0)}"
+        )
+        
+        return {
+            "status": "success",
+            "message": "Memory flush completed",
+            "flushed_memories": flush_result.get('flushed_memories', 0),
+            "flushed_sessions": flush_result.get('flushed_sessions', 0)
+        }
         
     except Exception as e:
         logger.error(f"Memory flush error: {e}", exc_info=True)
