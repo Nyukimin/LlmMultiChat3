@@ -157,7 +157,13 @@ class TestMemoryServiceIntegration:
             "metadata": {"topic": "programming"}
         }
         
-        store_result = await memory_service.store(user_id, memory_data)
+        store_result = await memory_service.store(
+            user_id=user_id,
+            session_id="test_session_007",
+            content=memory_data["content"],
+            layer=memory_data["layer"],
+            metadata=memory_data.get("metadata")
+        )
         assert store_result is not None
         
         # 記憶検索
@@ -194,7 +200,12 @@ class TestMemoryServiceIntegration:
             "content": "削除対象の記憶",
             "layer": "mid_term"
         }
-        store_result = await memory_service.store(user_id, memory_data)
+        store_result = await memory_service.store(
+            user_id=user_id,
+            session_id="test_session_009",
+            content=memory_data["content"],
+            layer=memory_data["layer"]
+        )
         memory_id = store_result.get('memory_id')
         
         # 記憶削除
@@ -210,11 +221,13 @@ class TestMemoryServiceIntegration:
         
         # 複数階層に記憶保存
         layers = ["short_term", "mid_term", "long_term"]
-        for layer in layers:
-            await memory_service.store(user_id, {
-                "content": f"{layer}の記憶内容",
-                "layer": layer
-            })
+        for i, layer in enumerate(layers):
+            await memory_service.store(
+                user_id=user_id,
+                session_id=f"test_session_010_{i}",
+                content=f"{layer}の記憶内容",
+                layer=layer
+            )
         
         # 複数階層検索
         search_result = await memory_service.search(
@@ -250,11 +263,13 @@ class TestEndToEndIntegration:
         session_id = "test_session_011"
         
         # 事前に記憶を保存
-        await memory_service.store(user_id, {
-            "content": "ユーザーは機械学習に興味がある",
-            "layer": "long_term",
-            "metadata": {"topic": "interest"}
-        })
+        await memory_service.store(
+            user_id=user_id,
+            session_id=session_id,
+            content="ユーザーは機械学習に興味がある",
+            layer="long_term",
+            metadata={"topic": "interest"}
+        )
         
         # 関連する会話
         result = await chat_service.chat(
