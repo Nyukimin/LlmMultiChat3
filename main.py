@@ -164,7 +164,7 @@ class MultiLLMChat:
     def _should_continue(self, state: Dict[str, Any]) -> str:
         """会話を継続すべきか判定"""
         current_turn = state.get('current_turn', 0)
-        max_turns = state.get('max_turns', self.config.max_turns)
+        max_turns = state.get('max_turns', self.config.system.max_turns)
         
         if current_turn >= max_turns:
             return "end"

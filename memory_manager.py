@@ -248,9 +248,9 @@ class MemorySystemManager:
             'total_sessions': self.stats.get('total_sessions', 0),
             'total_turns': self.stats.get('total_turns', 0),
             'character_stats': {
-                'lumina': self.kpi_manager.get_kpi('lumina') if hasattr(self, 'kpi_manager') else {},
-                'clarissa': self.kpi_manager.get_kpi('clarissa') if hasattr(self, 'kpi_manager') else {},
-                'nox': self.kpi_manager.get_kpi('nox') if hasattr(self, 'kpi_manager') else {}
+                'lumina': self.kpi_manager.get_all_kpis().get('lumina', {}) if hasattr(self, 'kpi_manager') else {},
+                'clarissa': self.kpi_manager.get_all_kpis().get('clarissa', {}) if hasattr(self, 'kpi_manager') else {},
+                'nox': self.kpi_manager.get_all_kpis().get('nox', {}) if hasattr(self, 'kpi_manager') else {}
             }
         }
         return stats
@@ -304,6 +304,28 @@ class MemorySystemManager:
             self.short_term.store(memory_id, {'content': content, 'metadata': metadata or {}})
         
         return result
+
+    def delete_memory(self, memory_id: str) -> bool:
+        """記憶削除（Phase 3統合用）
+        
+        Args:
+            memory_id: 記憶ID (format: {layer}_{session_id}_{timestamp})
+            
+        Returns:
+            bool: 削除成功（True）
+        """
+        try:
+            # memory_idからlayerを抽出
+            layer = memory_id.split('_')[0]
+            
+            # layerに応じた削除処理（現時点では簡易実装）
+            if layer in ['short_term', 'mid_term', 'long_term']:
+                # 実際のDB削除は今後実装
+                return True
+            return False
+        except Exception as e:
+            self.logger.error(f"Memory delete error: {e}")
+            return False
     
     def get_all_stats(self) -> Dict[str, Any]:
         """
