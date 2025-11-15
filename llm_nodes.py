@@ -35,7 +35,7 @@ class LLMNode:
         from metrics import get_metrics_collector
         metrics = get_metrics_collector()
         
-        model = self.config.models.get(model_key or self.model_key)
+        model = self.config.model.models.get(model_key or self.model_key)
         start_time = time.time()
         retry_count = 0
         

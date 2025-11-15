@@ -26,10 +26,16 @@ class MemoryService:
         """MemoryService初期化.
 
         Args:
-            memory_manager: Phase 1記憶マネージャー（NoneならChatServiceから取得）
+            memory_manager: Phase 1記憶マネージャー（Noneなら新規作成）
         """
-        self.memory_manager = memory_manager
-        logger.info("MemoryService initialized")
+        if memory_manager is None:
+            # テスト用: MemoryManagerを新規作成
+            self.memory_manager = MemorySystemManager()
+            self.memory_manager.initialize_characters()
+            logger.info("MemoryService initialized with new MemoryManager")
+        else:
+            self.memory_manager = memory_manager
+            logger.info("MemoryService initialized with provided MemoryManager")
 
     def set_memory_manager(self, memory_manager: MemorySystemManager):
         """記憶マネージャー設定.

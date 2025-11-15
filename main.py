@@ -170,12 +170,14 @@ class MultiLLMChat:
             return "end"
         return "continue"
     
-    def chat(self, user_input: str) -> Dict[str, Any]:
+    def chat(self, user_input: str, session_id: str = None, user_id: str = None) -> Dict[str, Any]:
         """
         ユーザー入力を処理して応答を生成
         
         Args:
             user_input: ユーザーの入力テキスト
+            session_id: セッションID（省略時: 内部セッションIDを使用）
+            user_id: ユーザーID（Phase 3統合用、省略可能）
             
         Returns:
             応答を含む状態辞書
@@ -193,9 +195,18 @@ class MultiLLMChat:
                 "session_id": self.conv_state.session_id
             }
         
-        # 会話状態の初期化（必要に応じて）
-        if not self.conv_state.history:
-            self.conv_state.start_new_session()
+        # セッションIDの処理（外部指定 or 内部管理）
+        if session_id:
+            # Phase 3統合: 外部指定のセッションIDを使用
+            if self.conv_state.session_id != session_id:
+                # 新規セッションまたはセッション切替
+                self.conv_state.session_id = session_id
+                if not self.conv_state.history:
+                    self.conv_state.start_new_session()
+        else:
+            # Phase 1互換: 内部セッションIDを使用
+            if not self.conv_state.history:
+                self.conv_state.start_new_session()
         
         # ユーザー入力を履歴に追加
         self.conv_state.add_turn("User", user_input)
@@ -205,7 +216,7 @@ class MultiLLMChat:
             "user_input": user_input,
             "history": self.conv_state.history.copy(),
             "current_turn": self.conv_state.current_turn,
-            "max_turns": self.config.max_turns,
+            "max_turns": getattr(self.config, 'max_turns', 12),
             "last_speaker": self.conv_state.last_speaker or "",
             "next_character": "",
             "session_id": self.conv_state.session_id,

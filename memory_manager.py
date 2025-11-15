@@ -218,15 +218,92 @@ class MemorySystemManager:
                 {"query": query, "namespace": namespace, "limit": limit}
             )
             results = self.knowledge_base.search(query, namespace, limit)
-            self.logger.log_system_event(
-                "knowledge_search_success",
-                {"result_count": len(results)}
-            )
+            if results:
+                self.logger.log_system_event(
+                    "knowledge_search_success",
+                    {"results": len(results)}
+                )
             return results
         except Exception as e:
             self.logger.log_error(e, context="search_knowledge")
-            # 検索失敗時は空リストを返す（システムを止めない）
             return []
+    
+    def get_memory_stats(self, session_id: Optional[str] = None) -> Dict[str, Any]:
+        """記憶統計取得（Phase 3統合用）
+        
+        Args:
+            session_id: セッションID（省略時: 全体統計）
+            
+        Returns:
+            Dict[str, Any]: 記憶統計情報
+        """
+        stats = {
+            'total_memories': self.stats.get('total_turns', 0),
+            'by_layer': {
+                'short_term': len(self.conversation_buffer.history) if hasattr(self.conversation_buffer, 'history') else 0,
+                'mid_term': self.stats.get('total_sessions', 0),
+                'long_term': 0,
+                'knowledge_base': 0
+            },
+            'total_sessions': self.stats.get('total_sessions', 0),
+            'total_turns': self.stats.get('total_turns', 0),
+            'character_stats': {
+                'lumina': self.kpi_manager.get_kpi('lumina') if hasattr(self, 'kpi_manager') else {},
+                'clarissa': self.kpi_manager.get_kpi('clarissa') if hasattr(self, 'kpi_manager') else {},
+                'nox': self.kpi_manager.get_kpi('nox') if hasattr(self, 'kpi_manager') else {}
+            }
+        }
+        return stats
+    
+    def search_memory(self, query: str, layers: List[str] = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """記憶検索（Phase 3統合用）
+        
+        Args:
+            query: 検索クエリ
+            layers: 検索対象レイヤー
+            limit: 最大結果数
+            
+        Returns:
+            List[Dict[str, Any]]: 検索結果
+        """
+        results = []
+        # 簡易実装（知識ベース検索）
+        if not layers or 'knowledge_base' in layers:
+            kb_results = self.search_knowledge(query, limit=limit)
+            for r in kb_results:
+                results.append({
+                    'memory_id': r.get('id', ''),
+                    'content': r.get('content', ''),
+                    'layer': 'knowledge_base',
+                    'timestamp': r.get('timestamp', datetime.now().isoformat()),
+                    'relevance_score': r.get('score', 0.0)
+                })
+        return results[:limit]
+    
+    def store_memory(self, session_id: str, content: str, layer: str = 'short_term', metadata: Dict = None) -> Dict[str, Any]:
+        """記憶保存（Phase 3統合用）
+        
+        Args:
+            session_id: セッションID
+            content: 記憶内容
+            layer: レイヤー名
+            metadata: メタデータ
+            
+        Returns:
+            Dict[str, Any]: 保存結果
+        """
+        memory_id = f"{layer}_{session_id}_{datetime.now().timestamp()}"
+        result = {
+            'memory_id': memory_id,
+            'layer': layer,
+            'timestamp': datetime.now().isoformat()
+        }
+        
+        # レイヤーに応じた保存処理
+        if layer == 'short_term':
+            self.short_term.store(memory_id, {'content': content, 'metadata': metadata or {}})
+        
+        return result
     
     def get_all_stats(self) -> Dict[str, Any]:
         """

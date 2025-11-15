@@ -30,6 +30,21 @@ class ConversationState:
     # スレッドID（セッション識別）
     thread_id: Optional[str] = None
     
+    # セッションID（Phase 3統合用・thread_idのエイリアス）
+    @property
+    def session_id(self) -> str:
+        """セッションID取得（thread_idを使用）"""
+        if self.thread_id is None:
+            # thread_idが未設定の場合は自動生成
+            import uuid
+            self.thread_id = f"session_{uuid.uuid4().hex[:8]}"
+        return self.thread_id
+    
+    @session_id.setter
+    def session_id(self, value: str):
+        """セッションID設定（thread_idに保存）"""
+        self.thread_id = value
+    
     # 現在のキャラクター
     current_character: Optional[str] = None
     
@@ -88,6 +103,25 @@ class ConversationState:
             f"{turn['speaker']}: {turn['msg']}"
             for turn in recent
         ])
+    
+    @property
+    def last_speaker(self) -> Optional[str]:
+        """最後の発話者を取得"""
+        if self.history:
+            return self.history[-1].get("speaker")
+        return None
+    
+    def start_new_session(self, session_id: Optional[str] = None):
+        """新規セッション開始
+        
+        Args:
+            session_id: セッションID（省略時は自動生成）
+        """
+        import uuid
+        self.thread_id = session_id or f"session_{uuid.uuid4().hex[:8]}"
+        self.start_time = datetime.now()
+        self.current_turn = 0
+        self.history = []
     
     def should_flush(self) -> bool:
         """
