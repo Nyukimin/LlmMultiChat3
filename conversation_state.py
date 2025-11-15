@@ -110,6 +110,13 @@ class ConversationState:
         if self.history:
             return self.history[-1].get("speaker")
         return None
+
+    @last_speaker.setter
+    def last_speaker(self, speaker: str) -> None:
+        """最後の発話者を設定（読み取り専用だが、main.pyとの互換性のために追加）"""
+        # 実際の更新はhistoryに最新メッセージを追加することで行われる
+        # このsetterは互換性のためのダミー実装
+        pass
     
     def start_new_session(self, session_id: Optional[str] = None):
         """新規セッション開始
