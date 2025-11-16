@@ -52,9 +52,16 @@ class MemorySystemManager:
         }
     
     def add_conversation_turn(self, speaker: str, message: str,
+                            session_id: Optional[str] = None,
                             metadata: Dict = None) -> bool:
         """
         会話ターンを追加（全記憶層に保存）
+        
+        Args:
+            speaker: 発話者
+            message: メッセージ
+            session_id: セッションID（Phase 3統合用）
+            metadata: メタデータ
         
         Args:
             speaker: 発話者
@@ -77,6 +84,7 @@ class MemorySystemManager:
             turn_data = {
                 'speaker': speaker,
                 'message': message,
+                'session_id': session_id,
                 'metadata': metadata or {}
             }
             self.short_term.store(turn_key, turn_data)
@@ -239,7 +247,7 @@ class MemorySystemManager:
         """
         stats = {
             'total_memories': self.stats.get('total_turns', 0),
-            'by_layer': {
+            'layers': {
                 'short_term': len(self.conversation_buffer.history) if hasattr(self.conversation_buffer, 'history') else 0,
                 'mid_term': self.stats.get('total_sessions', 0),
                 'long_term': 0,
@@ -267,17 +275,33 @@ class MemorySystemManager:
             List[Dict[str, Any]]: 検索結果
         """
         results = []
-        # 簡易実装（知識ベース検索）
-        if not layers or 'knowledge_base' in layers:
-            kb_results = self.search_knowledge(query, limit=limit)
-            for r in kb_results:
-                results.append({
-                    'memory_id': r.get('id', ''),
-                    'content': r.get('content', ''),
-                    'layer': 'knowledge_base',
-                    'timestamp': r.get('timestamp', datetime.now().isoformat()),
-                    'relevance_score': r.get('score', 0.0)
-                })
+        search_layers = layers or ['short_term', 'mid_term', 'long_term', 'knowledge_base']
+        
+        # 各レイヤーから検索
+        for layer in search_layers:
+            if layer == 'knowledge_base':
+                kb_results = self.search_knowledge(query, limit=limit)
+                for r in kb_results:
+                    results.append({
+                        'memory_id': r.get('id', ''),
+                        'content': r.get('content', ''),
+                        'layer': 'knowledge_base',
+                        'timestamp': r.get('timestamp', datetime.now().isoformat()),
+                        'relevance_score': r.get('score', 0.0)
+                    })
+            elif layer == 'short_term':
+                # 短期記憶から簡易検索
+                history = self.conversation_buffer.get_recent_turns(limit)
+                for turn in history:
+                    if query.lower() in turn.get('message', '').lower():
+                        results.append({
+                            'memory_id': f"short_term_{len(results)}",
+                            'content': turn.get('message', ''),
+                            'layer': 'short_term',
+                            'timestamp': turn.get('timestamp', datetime.now().isoformat()),
+                            'relevance_score': 0.8
+                        })
+        
         return results[:limit]
     
     def store_memory(self, session_id: str, content: str, layer: str = 'short_term', metadata: Dict = None) -> Dict[str, Any]:
