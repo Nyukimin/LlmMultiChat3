@@ -234,9 +234,9 @@ class MultiLLMChat:
         last_response = result['history'][-1] if result['history'] else None
         if last_response:
             self.memory.add_conversation_turn(
-                session_id=result['session_id'],
                 speaker=last_response['speaker'],
-                content=last_response['msg'],
+                message=last_response['msg'],
+                session_id=result['session_id'],
                 metadata={
                     'turn': result['current_turn'],
                     'user_input': user_input
