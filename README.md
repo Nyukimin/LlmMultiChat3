@@ -264,9 +264,17 @@ LlmMultiChat3/
 ### 前提条件
 
 - Python 3.10+
-- Ollama（ローカルLLM実行）
+- **LLMプロバイダー（以下のいずれか必須）**:
+  - **Ollama**（ローカルLLM実行）- 推奨
+  - **OpenAI API**（GPT-4o, GPT-4など）
+  - **Anthropic API**（Claude Sonnetなど）
+  - **Google AI API**（Geminiなど）
+  - その他、カスタムLLMプロバイダー対応
 - Redis（中期記憶キャッシュ）
 - DuckDB（中期記憶アーカイブ）
+
+> ⚠️ **重要**: テスト実行には少なくとも1つのLLMプロバイダーの設定が必要です。
+> Ollamaを使用しない場合は、各種APIキーを`.env`ファイルに設定してください。
 
 ### 1️⃣ 依存関係インストール
 
@@ -305,10 +313,22 @@ sudo systemctl start redis
 # .env作成（.env.exampleをコピー）
 cp .env.example .env
 
-# Serper APIキー設定（検索機能用）
+# LLMプロバイダーAPIキー設定（いずれか必須）
+# OpenAI使用時
+export OPENAI_API_KEY=your_openai_key
+
+# Anthropic使用時
+export ANTHROPIC_API_KEY=your_anthropic_key
+
+# Google AI使用時
+export GOOGLE_API_KEY=your_google_key
+
+# Serper APIキー設定（検索機能用・オプション）
 export SERPER_API_KEY=your_key_here  # macOS/Linux
 set SERPER_API_KEY=your_key_here     # Windows
 ```
+
+> 💡 **ヒント**: 複数のAPIキーを設定すると、フォールバック機能が利用できます。
 
 ### 5️⃣ システムチェック
 
