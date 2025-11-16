@@ -7,7 +7,7 @@ Phase 2以降での拡張を考慮した設計。
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 from datetime import datetime
 
 

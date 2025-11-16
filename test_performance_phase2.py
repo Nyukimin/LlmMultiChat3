@@ -4,10 +4,7 @@ Redis導入前後の性能比較
 """
 import pytest
 import time
-import json
-from pathlib import Path
 from memory.mid_term import MidTermMemory
-from memory.redis_cache import RedisCache
 from metrics import get_metrics_collector
 import statistics
 
@@ -58,7 +55,7 @@ class TestPhase2Performance:
         redis_avg = statistics.mean(redis_times) * 1000  # ms
         json_avg = statistics.mean(json_times) * 1000  # ms
         
-        print(f"\n=== 読み取り性能比較（100回平均）===")
+        print("\n=== 読み取り性能比較（100回平均）===")
         print(f"Redis: {redis_avg:.2f}ms")
         print(f"JSON: {json_avg:.2f}ms")
         print(f"高速化率: {json_avg/redis_avg:.1f}倍")
@@ -85,7 +82,7 @@ class TestPhase2Performance:
         avg_time = statistics.mean(write_times) * 1000  # ms
         p95_time = statistics.quantiles(write_times, n=20)[18] * 1000  # 95パーセンタイル
         
-        print(f"\n=== 書き込み性能（100回）===")
+        print("\n=== 書き込み性能（100回）===")
         print(f"平均: {avg_time:.2f}ms")
         print(f"95パーセンタイル: {p95_time:.2f}ms")
         print(f"最大: {max(write_times)*1000:.2f}ms")
@@ -119,7 +116,7 @@ class TestPhase2Performance:
         
         hit_rate = (hits_after - hits_before) / 10 * 100
         
-        print(f"\n=== キャッシュヒット率 ===")
+        print("\n=== キャッシュヒット率 ===")
         print(f"ヒット: {hits_after - hits_before}")
         print(f"ミス: {misses_after - misses_before}")
         print(f"ヒット率: {hit_rate:.1f}%")
@@ -154,7 +151,7 @@ class TestPhase2Performance:
         
         avg_time = statistics.mean(results) * 1000
         
-        print(f"\n=== 並行アクセス性能（100リクエスト/10並行）===")
+        print("\n=== 並行アクセス性能（100リクエスト/10並行）===")
         print(f"平均レスポンス: {avg_time:.2f}ms")
         print(f"スループット: {100/sum(results):.1f}req/s")
         
@@ -163,12 +160,11 @@ class TestPhase2Performance:
     
     def test_memory_usage(self, mid_term_redis):
         """メモリ使用量テスト"""
-        import sys
         
         # データ保存前
         if mid_term_redis.redis_cache and mid_term_redis.redis_cache.is_available():
             info_before = mid_term_redis.redis_cache.get_info()
-            print(f"\n=== メモリ使用量 ===")
+            print("\n=== メモリ使用量 ===")
             print(f"保存前: {info_before.get('used_memory', 'N/A')}")
         
         # 1000件保存
@@ -215,7 +211,7 @@ class TestMetricsPerformance:
         
         overhead = (statistics.mean(times_with) - statistics.mean(times_without)) * 1000
         
-        print(f"\n=== メトリクス収集オーバーヘッド ===")
+        print("\n=== メトリクス収集オーバーヘッド ===")
         print(f"メトリクスなし: {statistics.mean(times_without)*1000:.3f}ms")
         print(f"メトリクスあり: {statistics.mean(times_with)*1000:.3f}ms")
         print(f"オーバーヘッド: {overhead:.3f}ms")
@@ -249,7 +245,7 @@ class TestValidationPerformance:
         
         overhead = (statistics.mean(times_with) - statistics.mean(times_without)) * 1000
         
-        print(f"\n=== 入力検証オーバーヘッド ===")
+        print("\n=== 入力検証オーバーヘッド ===")
         print(f"検証なし: {statistics.mean(times_without)*1000:.3f}ms")
         print(f"検証あり: {statistics.mean(times_with)*1000:.3f}ms")
         print(f"オーバーヘッド: {overhead:.3f}ms")

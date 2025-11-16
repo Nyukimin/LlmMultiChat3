@@ -164,7 +164,7 @@ class ConversationState:
         turn_count = len(self.history)
         duration = (datetime.now() - self.start_time).total_seconds() / 60
         
-        summary = f"Conversation summary:\n"
+        summary = "Conversation summary:\n"
         summary += f"- Participants: {', '.join(speakers)}\n"
         summary += f"- Turns: {turn_count}\n"
         summary += f"- Duration: {duration:.1f} minutes\n"

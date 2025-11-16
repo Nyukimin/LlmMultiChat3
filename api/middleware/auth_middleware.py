@@ -27,7 +27,7 @@ Phase 3 Week 8-3:
 """
 
 from typing import Optional, Callable
-from fastapi import Request, HTTPException, status, Depends
+from fastapi import HTTPException, status, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 
@@ -261,7 +261,7 @@ class AuthMiddleware:
                 )
                 return current_user
                 
-            except InsufficientPermissionsError as e:
+            except InsufficientPermissionsError:
                 logger.warning(
                     f"User {current_user.user_id} lacks permission: {permission}"
                 )

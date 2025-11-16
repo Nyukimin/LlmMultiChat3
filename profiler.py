@@ -20,7 +20,6 @@ from pathlib import Path
 
 from memory_manager import MemorySystemManager
 # from main import MultiLLMChat  # 循環参照回避のためコメントアウト
-from conversation_state import ConversationState
 
 
 class PerformanceProfiler:

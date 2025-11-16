@@ -7,7 +7,7 @@ LangGraph Stateとして管理される即時応答用の記憶。
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from collections import OrderedDict
 from .base import MemoryBackend, MemoryItem, MemoryConfig
 

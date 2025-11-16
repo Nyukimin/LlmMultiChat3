@@ -5,7 +5,6 @@
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from typing import Dict, Any
 
 from core.plugin_manager import PluginManager

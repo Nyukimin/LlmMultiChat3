@@ -313,7 +313,7 @@ async def global_exception_handler(
 
 # ルート登録
 from api.routes import auth, chat, memory
-from api.websocket import websocket_endpoint, manager as ws_manager
+from api.websocket import websocket_endpoint
 
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["認証"])
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["会話"])

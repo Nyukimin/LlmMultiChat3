@@ -31,7 +31,7 @@ import logging
 import json
 from datetime import datetime
 
-from fastapi import WebSocket, WebSocketDisconnect, status
+from fastapi import WebSocket, WebSocketDisconnect
 from fastapi.websockets import WebSocketState
 
 from security.jwt_manager import JWTManager

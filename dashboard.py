@@ -7,7 +7,7 @@ Phase 3でWebSocketリアルタイムダッシュボードに拡張予定。
 """
 
 from datetime import datetime
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pathlib import Path
 
 

@@ -5,7 +5,7 @@ check_system.py
 
 import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict
 import requests
 from config import Config
 

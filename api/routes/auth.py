@@ -26,7 +26,7 @@ Phase 3 Week 9-1:
     ... }
 """
 
-from typing import Dict, Any
+from typing import Dict
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status, Request

@@ -13,7 +13,6 @@ Phase 3 Week 9: 記憶APIのテスト。
 
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime
 
 from api.main import app
 

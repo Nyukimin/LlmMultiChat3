@@ -319,7 +319,7 @@ async def chat_stream(
             
         except Exception as e:
             logger.error(f"Streaming error: {e}", exc_info=True)
-            yield f"data: {{\"error\": \"Streaming failed\"}}\n\n"
+            yield "data: {\"error\": \"Streaming failed\"}\n\n"
     
     return StreamingResponse(
         generate(),

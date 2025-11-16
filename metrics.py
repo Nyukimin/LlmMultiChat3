@@ -7,7 +7,7 @@ LLM呼び出し、記憶操作、エラーなどのメトリクスを収集・�
 """
 
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from typing import Dict, Any
 import json
 from pathlib import Path
 import statistics
@@ -301,7 +301,7 @@ class MetricsCollector:
         
         # セッション情報
         session = summary['session_info']
-        report.append(f"\n【セッション情報】")
+        report.append("\n【セッション情報】")
         report.append(f"開始時刻: {session['start']}")
         if session['end']:
             report.append(f"終了時刻: {session['end']}")
@@ -309,7 +309,7 @@ class MetricsCollector:
         
         # LLM統計
         llm = summary['llm_stats']
-        report.append(f"\n【LLM呼び出し】")
+        report.append("\n【LLM呼び出し】")
         report.append(f"総呼び出し数: {llm['total_calls']}回")
         report.append(f"平均応答時間: {llm['avg_call_time_ms']:.2f}ms")
         report.append(f"中央値: {llm['median_call_time_ms']:.2f}ms")
@@ -320,7 +320,7 @@ class MetricsCollector:
         
         # 記憶システム統計
         memory = summary['memory_stats']
-        report.append(f"\n【記憶システム】")
+        report.append("\n【記憶システム】")
         report.append(f"総操作数: {memory['total_operations']}回")
         report.append(f"読み込み: {memory['total_reads']}回")
         report.append(f"書き込み: {memory['total_writes']}回")
@@ -328,7 +328,7 @@ class MetricsCollector:
         
         # 会話統計
         conv = summary['conversation_stats']
-        report.append(f"\n【会話統計】")
+        report.append("\n【会話統計】")
         report.append(f"総ターン数: {conv['total_turns']}回")
         report.append(f"ユーザー入力: {conv['user_inputs']}回")
         report.append(f"システム応答: {conv['system_responses']}回")
@@ -336,13 +336,13 @@ class MetricsCollector:
         
         # キャラクター統計
         char = summary['character_stats']
-        report.append(f"\n【キャラクター別応答数】")
+        report.append("\n【キャラクター別応答数】")
         for character, count in char.items():
             report.append(f"{character}: {count}回")
         
         # エラー統計
         error = summary['error_stats']
-        report.append(f"\n【エラー統計】")
+        report.append("\n【エラー統計】")
         report.append(f"総エラー数: {error['total_errors']}回")
         if error['errors_by_type']:
             report.append("エラー種別:")

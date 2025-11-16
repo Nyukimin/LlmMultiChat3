@@ -24,11 +24,10 @@ Phase 3 Week 8-3:
 
 from typing import Optional, Callable
 from fastapi import Request, Response, HTTPException, status
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import logging
-import time
 from collections import defaultdict
 from datetime import datetime, timedelta
 

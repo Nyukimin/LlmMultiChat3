@@ -17,11 +17,10 @@ Phase 3 Week 8-2:
     False
 """
 
-from typing import List, Set, Dict, Optional
+from typing import List, Set, Dict
 import logging
 from security.models import User
 from exceptions import (
-    AuthorizationError,
     InsufficientPermissionsError,
     ValidationError
 )

@@ -6,18 +6,15 @@ Week 5で実装したエラーハンドリング機能の動作を検証。
 """
 
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+from unittest.mock import patch
 
 from exceptions import (
     ShortTermMemoryError,
     MidTermMemoryError,
     LongTermMemoryError,
-    LLMNodeError,
-    LLMInvocationError
+    LLMNodeError
 )
 from memory_manager import MemorySystemManager
-from memory.base import MemoryConfig
 
 
 class TestMemoryManagerErrorHandling:

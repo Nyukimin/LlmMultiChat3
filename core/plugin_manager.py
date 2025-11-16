@@ -4,7 +4,6 @@
 プラグインのロード、初期化、実行、管理を行います。
 """
 
-import asyncio
 import importlib
 import inspect
 import logging
@@ -14,7 +13,6 @@ from datetime import datetime
 
 from plugins.base import (
     BasePlugin,
-    PluginMetadata,
     PluginStatus,
     PluginError,
     PluginInitializationError,

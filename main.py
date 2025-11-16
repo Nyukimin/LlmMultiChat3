@@ -16,7 +16,6 @@ from conversation_state import ConversationState
 from llm_nodes import LuminaNode, ClarisNode, NoxNode, RouterNode
 from memory_manager import MemorySystemManager
 from exceptions import LLMNodeError
-from utils import Logger
 from metrics import get_metrics_collector
 
 

@@ -13,10 +13,8 @@ Phase 3 Week 9: 認証APIのテスト。
 
 import pytest
 from fastapi.testclient import TestClient
-from datetime import datetime
 
 from api.main import app
-from security.models import User
 
 
 # テストクライアント

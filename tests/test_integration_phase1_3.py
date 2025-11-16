@@ -6,8 +6,6 @@ Phase 1 LangGraphコアの統合動作を検証します。
 
 import asyncio
 import pytest
-from datetime import datetime
-from typing import Dict, Any
 
 # 統合サービスのインポート
 from services.chat_service import ChatService
@@ -134,7 +132,7 @@ class TestChatServiceIntegration:
         # クリア後の履歴確認
         history = await chat_service.get_conversation_history(user_id, session_id)
         assert len(history) == 0
-        print(f"✅ セッションクリアテスト成功")
+        print("✅ セッションクリアテスト成功")
 
 
 class TestMemoryServiceIntegration:
@@ -212,7 +210,7 @@ class TestMemoryServiceIntegration:
         delete_result = await memory_service.delete(user_id, memory_id)
         
         assert delete_result is True
-        print(f"✅ 記憶削除テスト成功")
+        print("✅ 記憶削除テスト成功")
     
     @pytest.mark.asyncio
     async def test_multi_layer_search(self, memory_service):
@@ -280,7 +278,7 @@ class TestEndToEndIntegration:
         
         assert result is not None
         assert len(result['response']) > 0
-        print(f"✅ 記憶統合会話テスト成功")
+        print("✅ 記憶統合会話テスト成功")
     
     @pytest.mark.asyncio
     async def test_multi_turn_conversation_with_memory(self):

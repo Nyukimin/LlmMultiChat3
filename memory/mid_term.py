@@ -8,7 +8,7 @@ Redis キャッシュ層を追加（Phase 2）。
 """
 
 from typing import Dict, Any, List, Optional
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 import json
 from .base import MemoryBackend, MemoryItem, MemoryConfig

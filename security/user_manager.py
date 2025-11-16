@@ -25,16 +25,13 @@ Phase 3 Week 8-2:
 
 import sqlite3
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
+from datetime import datetime
 import logging
 from pathlib import Path
 import json
 
 from security.models import (
     User,
-    UserRegistration,
-    LoginCredentials,
-    TokenResponse,
     UserProfile
 )
 from security.jwt_manager import JWTManager
@@ -44,7 +41,6 @@ from exceptions import (
     UserAlreadyExistsError,
     UserNotFoundError,
     InvalidCredentialsError,
-    TokenExpiredError,
     InvalidTokenError,
     DatabaseError
 )

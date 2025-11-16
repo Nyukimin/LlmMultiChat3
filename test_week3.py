@@ -19,20 +19,20 @@ def test_memory_base():
     print_section("1. Memory Base モジュールのテスト")
     
     try:
-        from memory.base import MemoryBackend, MemoryItem, MemoryConfig
+        from memory.base import MemoryItem, MemoryConfig
         
         print("✓ Memory Base インポート成功")
         
         # MemoryConfig のテスト
         config = MemoryConfig()
-        print(f"✓ MemoryConfig 初期化成功")
+        print("✓ MemoryConfig 初期化成功")
         print(f"  - 短期記憶最大アイテム数: {config.short_term_max_items}")
         print(f"  - 中期記憶TTL: {config.mid_term_ttl_seconds}秒")
         print(f"  - 知識ベース名前空間: {config.kb_namespaces}")
         
         # MemoryItem のテスト
         item = MemoryItem("test_key", "test_value", {"type": "test"})
-        print(f"✓ MemoryItem 作成成功")
+        print("✓ MemoryItem 作成成功")
         print(f"  - キー: {item.key}")
         print(f"  - 値: {item.value}")
         
@@ -47,7 +47,6 @@ def test_short_term_memory():
     
     try:
         from memory.short_term import ShortTermMemory, ConversationBuffer
-        from memory.base import MemoryConfig
         
         print("✓ ShortTermMemory インポート成功")
         
@@ -95,7 +94,7 @@ def test_mid_term_memory():
             'speakers': {'User': 5, 'ルミナ': 5}
         }
         mtm.store_session_summary(session_id, summary)
-        print(f"✓ セッションサマリー保存成功")
+        print("✓ セッションサマリー保存成功")
         
         # セッションサマリーの取得
         retrieved = mtm.retrieve_session_summary(session_id)
@@ -130,7 +129,7 @@ def test_long_term_memory():
             'preferences': {'language': 'ja', 'style': 'friendly'}
         }
         ltm.store_user_profile(user_id, profile)
-        print(f"✓ ユーザープロファイル保存成功")
+        print("✓ ユーザープロファイル保存成功")
         
         # CharacterKPIManager のテスト
         kpi_mgr = CharacterKPIManager(ltm)
@@ -182,7 +181,7 @@ def test_memory_integration():
     
     try:
         from memory import (
-            MemoryBackend, ShortTermMemory, MidTermMemory,
+            ShortTermMemory, MidTermMemory,
             LongTermMemory, KnowledgeBase
         )
         

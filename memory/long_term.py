@@ -6,7 +6,7 @@ memory/long_term.py
 Phase 1では簡易実装、Phase 2以降でVectorDB統合。
 """
 
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 from datetime import datetime
 from pathlib import Path
 import json

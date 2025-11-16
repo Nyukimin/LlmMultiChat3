@@ -13,7 +13,7 @@ Phase 3 Week 8-1:
 from pydantic import BaseModel, EmailStr, Field, validator
 from typing import List, Optional
 from datetime import datetime
-from uuid import UUID, uuid4
+from uuid import uuid4
 import re
 
 

@@ -7,9 +7,8 @@ utils.py
 
 import logging
 import json
-import os
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 

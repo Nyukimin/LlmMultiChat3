@@ -6,9 +6,6 @@ Redis キャッシュモジュール
 import redis
 import json
 from typing import Optional, Dict, Any, List
-from datetime import datetime, timedelta
-import logging
-from exceptions import MidTermMemoryError
 from utils import Logger
 
 

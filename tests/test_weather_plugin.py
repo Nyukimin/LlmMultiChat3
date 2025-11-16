@@ -5,8 +5,7 @@
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
-from aiohttp import ClientSession, ClientError
+from unittest.mock import AsyncMock, patch
 import os
 
 from plugins.weather import WeatherPlugin
