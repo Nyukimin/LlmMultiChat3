@@ -15,8 +15,17 @@
 3. [Week 1-2: 3D可視化パネル](#3-week-1-2-3d可視化パネル)
 4. [Week 3-4: 自律的外部サーチエージェント](#4-week-3-4-自律的外部サーチエージェント)
 5. [技術スタック](#5-技術スタック)
-6. [テスト計画](#6-テスト計画)
+6. [テスト計画（TDD実装）](#6-テスト計画tdd実装)
+   - [TDD実装仕様サマリー](#60-tdd実装仕様サマリー)
+   - [テストカバレッジ目標](#61-テストカバレッジ目標)
+   - [テスト実行方法](#62-テスト実行方法)
+   - [Week 1-2: 3D可視化パネル - テスト仕様（TDD）](#week-1-2-3d可視化パネル---テスト仕様tdd)
+   - [Week 3-4: 自律的外部サーチエージェント - テスト仕様（TDD）](#week-3-4-自律的外部サーチエージェント---テスト仕様tdd)
+   - [統合テスト仕様（TDD）](#統合テスト仕様tdd)
+   - [テストフィクスチャ仕様](#テストフィクスチャ仕様)
+   - [テスト実行戦略](#テスト実行戦略)
 7. [成果物](#7-成果物)
+8. [Phase 7成功基準](#8-phase-7成功基準)
 
 ---
 
@@ -26,7 +35,24 @@
 
 連想ネットワークの3D可視化と自律情報収集により、**視覚的理解と知識の自動拡張**を実現します。
 
-### 1.2 主要機能
+### 1.2 TDD実装アプローチ
+
+Phase 7は**テスト駆動開発（TDD）**で実装します。各機能は以下のサイクルで開発します：
+
+```
+1. 🔴 RED: テストを書く（失敗する）
+2. 🟢 GREEN: 最小限の実装でテストを通す
+3. 🔵 REFACTOR: コードをリファクタリング（テストは常に成功）
+```
+
+**TDDの原則**:
+- ✅ 実装前に必ずテストを書く
+- ✅ 1つのテスト → 1つの実装 → リファクタリングのサイクル
+- ✅ Given-When-Then形式でテストを記述
+- ✅ 各テストは独立して実行可能
+- ✅ 外部依存はモックで分離
+
+### 1.3 主要機能
 
 | 機能カテゴリ | 説明 | Priority |
 |-------------|------|----------|
@@ -418,65 +444,37 @@ class VisualizationControls:
         """
 ```
 
-### 3.3 テスト（10件）
+### 3.3 テスト仕様（TDD）
 
-#### tests/test_visualization.py
+**注意**: このセクションは実装前のテスト仕様です。実装は必ずテストファーストで行います。
+
+#### テストファイル構成
+
+- `tests/test_visualization.py`: AssociationVisualizationPanelクラスのユニットテスト（30件）
+- `tests/test_integration_visualization.py`: 連想記憶連携の統合テスト（10件）
+
+#### テストデータ定義
 
 ```python
-"""3D可視化モジュールのテスト."""
+# tests/fixtures/visualization_fixtures.py
 
-import pytest
-from visualization.association_3d import AssociationVisualizationPanel
-from memory.associative import AssociativeMemory
+TEST_CONCEPTS = [
+    "機械学習",
+    "Python",
+    "データベース",
+    "Web開発",
+    "自然言語処理"
+]
 
+TEST_CONCEPT_PAIRS = [
+    ("機械学習", "Python", 0.8),
+    ("Python", "データベース", 0.6),
+    ("Web開発", "Python", 0.7),
+]
 
-def test_panel_init():
-    """初期化テスト."""
-    memory = AssociativeMemory(db_path=":memory:")
-    panel = AssociationVisualizationPanel(memory)
-    
-    assert panel.is_enabled is False
-    assert panel.current_center is None
-
-
-def test_toggle():
-    """ON/OFF切り替えテスト."""
-    memory = AssociativeMemory(db_path=":memory:")
-    panel = AssociationVisualizationPanel(memory)
-    
-    assert panel.toggle() is True
-    assert panel.is_enabled is True
-    
-    assert panel.toggle() is False
-    assert panel.is_enabled is False
-
-
-def test_update_center():
-    """中心概念更新テスト."""
-    memory = AssociativeMemory(db_path=":memory:")
-    panel = AssociationVisualizationPanel(memory)
-    
-    panel.update_center("機械学習")
-    assert panel.current_center == "機械学習"
-
-
-def test_render_graph():
-    """グラフ描画テスト."""
-    memory = AssociativeMemory(db_path=":memory:")
-    panel = AssociationVisualizationPanel(memory)
-    
-    # 概念追加
-    memory.add_concept("機械学習", embedding=[0.1]*128, metadata={})
-    memory.add_concept("Python", embedding=[0.2]*128, metadata={})
-    memory.link_concepts("機械学習", "Python", "related", strength=0.8)
-    
-    panel.current_center = "機械学習"
-    fig = panel._render_graph()
-    
-    assert fig is not None
-
-
-# ... 他6件（境界値、異常系、統合テスト）
+TEST_DEPTHS = [1, 2, 3]
+TEST_THRESHOLDS = [0.1, 0.3, 0.5, 0.7, 0.9]
+TEST_MAX_NODES = [10, 50, 100, 1000]
 ```
 
 ---
@@ -743,49 +741,40 @@ class UpdateScheduler:
             time.sleep(60)
 ```
 
-### 4.3 テスト（15件）
+### 4.3 テスト仕様（TDD）
 
-#### tests/test_autonomous_search.py
+**注意**: このセクションは実装前のテスト仕様です。実装は必ずテストファーストで行います。
+
+#### テストファイル構成
+
+- `tests/test_autonomous_search.py`: AutonomousSearchAgentクラスのユニットテスト（30件）
+- `tests/test_scheduler.py`: UpdateSchedulerクラスのユニットテスト（15件）
+- `tests/test_integration_search.py`: KB連携・スケジューラ統合テスト（10件）
+
+#### テストデータ定義
 
 ```python
-"""自律サーチエージェントのテスト."""
+# tests/fixtures/autonomous_search_fixtures.py
 
-import pytest
-from agents.autonomous_search import AutonomousSearchAgent
+TEST_QUERIES = [
+    "機械学習",
+    "Python",
+    "最新ニュース",
+    "",  # 空クエリ（エッジケース）
+    "a" * 1000,  # 長いクエリ（エッジケース）
+]
 
+TEST_KB_RESULTS = [
+    [],  # 空の結果
+    [{"similarity": 0.5}],  # 低信頼度
+    [{"similarity": 0.6}],  # 境界値
+    [{"similarity": 0.9}],  # 高信頼度
+]
 
-def test_should_search():
-    """検索判定テスト."""
-    agent = AutonomousSearchAgent()
-    
-    # KB結果なし → 検索実行
-    assert agent.should_search("質問", []) is True
-    
-    # 信頼度低い → 検索実行
-    assert agent.should_search("質問", [{"similarity": 0.5}]) is True
-    
-    # 信頼度高い → 検索不要
-    assert agent.should_search("質問", [{"similarity": 0.9}]) is False
+TEST_MAX_RESULTS = [1, 5, 10, 0, -1, 1000]  # 正常値とエッジケース
 
-
-@pytest.mark.skipif(not pytest.config.getoption("--run-slow"), reason="Slow test")
-def test_web_search():
-    """Web検索テスト（Serper API必要）."""
-    agent = AutonomousSearchAgent(serper_api_key="test_key")
-    # Note: 実際のAPIキーでテスト
-
-
-def test_wikipedia_search():
-    """Wikipedia検索テスト."""
-    agent = AutonomousSearchAgent()
-    
-    result = agent.wikipedia_search("Python")
-    assert result is not None
-    assert "title" in result
-    assert "summary" in result
-
-
-# ... 他12件（境界値、異常系、統合テスト）
+TEST_CATEGORIES = ["news", "movies", "tech", "general"]
+TEST_SOURCES = ["autonomous_search", "manual", "scheduled"]
 ```
 
 ---
@@ -811,41 +800,1236 @@ schedule==1.2.0         # スケジューラ
 
 ---
 
-## 6. テスト計画
+## 6. テスト計画（TDD実装）
 
-### 6.1 テスト構成
+### 6.0 TDD実装仕様サマリー
 
-| テストファイル | テスト件数 | カバレッジ目標 |
-|---------------|-----------|---------------|
-| `tests/test_visualization.py` | 10件 | > 80% |
-| `tests/test_autonomous_search.py` | 15件 | > 85% |
-| **合計** | **25件** | **> 83%** |
+**Phase 7は完全なTDD（テスト駆動開発）アプローチで実装します。**
 
-### 6.2 テストカテゴリ
+#### TDD実装の原則
 
-**Unit Tests（15件）**:
-- パネル初期化テスト
-- グラフ描画テスト
-- 検索判定テスト
-- Wikipedia検索テスト
+1. **テストファースト**: すべての機能は実装前にテストを書く
+2. **RED-GREEN-REFACTORサイクル**: 失敗→成功→リファクタリングのサイクルを徹底
+3. **Given-When-Then形式**: すべてのテストを明確な形式で記述
+4. **テスト独立性**: 各テストは独立して実行可能
+5. **モック分離**: 外部依存（API、Wikipedia等）はモックで分離
 
-**Integration Tests（10件）**:
-- 連想記憶との連携テスト
-- KB保存テスト
-- スケジューラ統合テスト
+#### テスト構成
 
-### 6.3 実行方法
+| カテゴリ | テストファイル | テスト数 | カバレッジ目標 | 優先度 |
+|---------|--------------|---------|--------------|--------|
+| **3D可視化パネル** |
+| AssociationVisualizationPanel | `test_visualization.py` | 30件 + エッジケース10件 + パラメータ化5件 | 90%以上 | 🟡 Medium |
+| **自律サーチエージェント** |
+| AutonomousSearchAgent | `test_autonomous_search.py` | 30件 + エッジケース10件 + パラメータ化5件 | 90%以上 | 🔴 High |
+| UpdateScheduler | `test_scheduler.py` | 15件 + エッジケース5件 | 85%以上 | 🔴 High |
+| **統合テスト** |
+| 連想記憶連携 | `test_integration_visualization.py` | 10件 | 85%以上 | 🟡 Medium |
+| KB連携・スケジューラ | `test_integration_search.py` | 10件 | 85%以上 | 🟡 Medium |
+| **合計** | **5ファイル + フィクスチャ2ファイル** | **120件以上** | **平均88%以上** | - |
+
+#### テスト実行戦略
+
+- **Week 1-2**: 3D可視化パネル（6日間で段階的に実装）
+- **Week 3-4**: 自律サーチエージェント（6日間で段階的に実装）
+- **各機能**: RED → GREEN → REFACTORサイクルで実装
+- **品質基準**: テスト成功率100%、カバレッジ88%以上、実行時間5分以内
+
+### 6.1 テストカバレッジ目標
+
+| カテゴリ | ファイル | テスト数 | カバレッジ目標 | 優先度 |
+|---------|---------|---------|--------------|--------|
+| **3D可視化パネル** |
+| AssociationVisualizationPanel | `test_visualization.py` | 45件 | 90%以上 | 🟡 Medium |
+| **自律サーチエージェント** |
+| AutonomousSearchAgent | `test_autonomous_search.py` | 45件 | 90%以上 | 🔴 High |
+| UpdateScheduler | `test_scheduler.py` | 20件 | 85%以上 | 🔴 High |
+| **統合テスト** |
+| 連想記憶連携 | `test_integration_visualization.py` | 10件 | 85%以上 | 🟡 Medium |
+| KB連携・スケジューラ | `test_integration_search.py` | 10件 | 85%以上 | 🟡 Medium |
+| **合計** | **5ファイル** | **130件以上** | **平均88%以上** | - |
+
+### 6.2 テスト実行方法
+
+#### 基本的なテスト実行
 
 ```bash
 # 全テスト実行
-pytest tests/test_visualization.py tests/test_autonomous_search.py -v
+pytest tests/test_visualization.py tests/test_autonomous_search.py tests/test_scheduler.py -v
 
-# スケジューラ起動
-python -m scheduler.update_scheduler
+# カバレッジ付きテスト実行
+pytest tests/ \
+  --cov=visualization.association_3d \
+  --cov=agents.autonomous_search \
+  --cov=scheduler.update_scheduler \
+  --cov-report=html \
+  --cov-report=term-missing \
+  --cov-fail-under=88
 
-# 3D可視化確認
-python -c "from visualization.association_3d import AssociationVisualizationPanel; panel.export_html('test.html')"
+# 特定のテストのみ
+pytest tests/test_visualization.py::test_panel_init -v
+
+# マーカーで実行
+pytest -m unit -v              # ユニットテストのみ
+pytest -m integration -v      # 統合テストのみ
+pytest -m slow -v             # 遅いテストのみ（API呼び出しなど）
+pytest -m "not slow" -v       # 遅いテストを除外
 ```
+
+#### TDDサイクルでの実行
+
+```bash
+# 1. テストを書いた後（RED）
+pytest tests/test_visualization.py::test_panel_init -v
+# → 期待: FAILED（実装前）
+
+# 2. 最小限の実装後（GREEN）
+pytest tests/test_visualization.py::test_panel_init -v
+# → 期待: PASSED
+
+# 3. リファクタリング後（REFACTOR）
+pytest tests/test_visualization.py -v
+# → 期待: 全テスト PASSED
+```
+
+---
+
+## Week 1-2: 3D可視化パネル - テスト仕様（TDD）
+
+### テストファイル: `tests/test_visualization.py`
+
+**テストクラス**: `TestAssociationVisualizationPanel`, `TestVisualizationControls`
+
+**テストケース一覧（45件）**:
+
+#### 1. 初期化テスト（5件）
+
+```python
+def test_panel_init_default_state():
+    """
+    Given: AssociativeMemoryインスタンス
+    When: AssociationVisualizationPanelを初期化
+    Then: デフォルト状態で初期化される（is_enabled=False, current_center=None）
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    assert panel.is_enabled is False
+    assert panel.current_center is None
+    assert panel.max_nodes == 50
+    assert panel.associative_memory is memory
+
+def test_panel_init_with_custom_max_nodes():
+    """
+    Given: カスタムmax_nodes値
+    When: AssociationVisualizationPanelを初期化
+    Then: max_nodesが設定される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.max_nodes = 100
+    
+    assert panel.max_nodes == 100
+
+def test_panel_init_with_none_memory():
+    """
+    Given: NoneのAssociativeMemory
+    When: AssociationVisualizationPanelを初期化
+    Then: エラーが発生する
+    """
+    with pytest.raises((TypeError, ValueError)):
+        AssociationVisualizationPanel(None)
+```
+
+#### 2. ON/OFF切り替えテスト（5件）
+
+```python
+def test_toggle_from_off_to_on():
+    """
+    Given: パネルがOFF状態
+    When: toggle()を呼び出す
+    Then: ON状態になり、Trueが返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    result = panel.toggle()
+    
+    assert result is True
+    assert panel.is_enabled is True
+
+def test_toggle_from_on_to_off():
+    """
+    Given: パネルがON状態
+    When: toggle()を呼び出す
+    Then: OFF状態になり、Falseが返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.is_enabled = True
+    
+    result = panel.toggle()
+    
+    assert result is False
+    assert panel.is_enabled is False
+
+def test_toggle_multiple_times():
+    """
+    Given: パネル
+    When: toggle()を複数回呼び出す
+    Then: 状態が交互に切り替わる
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    assert panel.toggle() is True
+    assert panel.toggle() is False
+    assert panel.toggle() is True
+    assert panel.toggle() is False
+```
+
+#### 3. 中心概念更新テスト（5件）
+
+```python
+def test_update_center_sets_center():
+    """
+    Given: 概念名
+    When: update_center()を呼び出す
+    Then: current_centerが設定される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    panel.update_center("機械学習")
+    
+    assert panel.current_center == "機械学習"
+
+def test_update_center_triggers_render_when_enabled():
+    """
+    Given: パネルがON状態
+    When: update_center()を呼び出す
+    Then: グラフが描画される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.is_enabled = True
+    
+    # モックで_render_graphが呼ばれたことを確認
+    with patch.object(panel, '_render_graph') as mock_render:
+        panel.update_center("機械学習")
+        mock_render.assert_called_once()
+
+def test_update_center_empty_concept():
+    """
+    Given: 空の概念名
+    When: update_center()を呼び出す
+    Then: current_centerが空文字列に設定される（またはエラー）
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    panel.update_center("")
+    
+    assert panel.current_center == ""
+```
+
+#### 4. グラフ描画テスト（10件）
+
+```python
+def test_render_graph_with_no_center():
+    """
+    Given: current_centerがNone
+    When: _render_graph()を呼び出す
+    Then: 空のFigureが返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    fig = panel._render_graph()
+    
+    assert fig is not None
+    assert len(fig.data) == 0
+
+def test_render_graph_with_concepts():
+    """
+    Given: 概念が存在する
+    When: _render_graph()を呼び出す
+    Then: ノードとエッジを含むFigureが返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    # 概念追加
+    memory.add_concept("機械学習", embedding=[0.1]*128, metadata={})
+    memory.add_concept("Python", embedding=[0.2]*128, metadata={})
+    memory.link_concepts("機械学習", "Python", "related", strength=0.8)
+    
+    panel.current_center = "機械学習"
+    fig = panel._render_graph()
+    
+    assert fig is not None
+    assert len(fig.data) > 0
+
+def test_render_graph_max_nodes_limit():
+    """
+    Given: max_nodesを超える概念数
+    When: _render_graph()を呼び出す
+    Then: max_nodes数までに制限される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.max_nodes = 5
+    
+    # 10個の概念を追加
+    for i in range(10):
+        memory.add_concept(f"概念{i}", embedding=[0.1]*128, metadata={})
+    
+    panel.current_center = "概念0"
+    
+    with patch.object(memory, 'retrieve_associated_concepts') as mock_retrieve:
+        mock_retrieve.return_value = [{"name": f"概念{i}"} for i in range(10)]
+        fig = panel._render_graph()
+        
+        # max_nodesまでに制限されていることを確認
+        # 実際の実装に応じて検証
+```
+
+#### 5. 座標計算テスト（5件）
+
+```python
+def test_calculate_positions_center_at_origin():
+    """
+    Given: 中心概念
+    When: _calculate_positions()を呼び出す
+    Then: 中心が原点(0,0,0)に配置される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.current_center = "機械学習"
+    
+    concepts = [{"name": "機械学習"}]
+    positions = panel._calculate_positions(concepts)
+    
+    assert positions["機械学習"] == (0.0, 0.0, 0.0)
+
+def test_calculate_positions_depth_based_radius():
+    """
+    Given: 異なるdepthの概念
+    When: _calculate_positions()を呼び出す
+    Then: depthに応じた半径で配置される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.current_center = "機械学習"
+    
+    concepts = [
+        {"name": "機械学習", "depth": 0},
+        {"name": "Python", "depth": 1},
+        {"name": "データベース", "depth": 2}
+    ]
+    positions = panel._calculate_positions(concepts)
+    
+    # depth=1の概念は半径2.0、depth=2の概念は半径4.0の範囲内
+    # 実際の座標値はランダムなので、範囲チェック
+    assert "Python" in positions
+    assert "データベース" in positions
+```
+
+#### 6. ノード・エッジ作成テスト（8件）
+
+```python
+def test_create_node_trace_with_concepts():
+    """
+    Given: 概念リストと座標
+    When: _create_node_trace()を呼び出す
+    Then: Scatter3dトレースが作成される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    concepts = [
+        {"name": "機械学習", "depth": 0, "activation_count": 5}
+    ]
+    positions = {"機械学習": (0.0, 0.0, 0.0)}
+    
+    trace = panel._create_node_trace(concepts, positions)
+    
+    assert isinstance(trace, go.Scatter3d)
+    assert len(trace.x) == 1
+
+def test_create_edge_traces_with_edges():
+    """
+    Given: エッジリストと座標
+    When: _create_edge_traces()を呼び出す
+    Then: エッジトレースリストが作成される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    edges = [
+        {"from": "機械学習", "to": "Python", "strength": 0.8}
+    ]
+    positions = {
+        "機械学習": (0.0, 0.0, 0.0),
+        "Python": (1.0, 1.0, 1.0)
+    }
+    
+    traces = panel._create_edge_traces(edges, positions)
+    
+    assert len(traces) == 1
+    assert isinstance(traces[0], go.Scatter3d)
+```
+
+#### 7. 色・サイズ計算テスト（5件）
+
+```python
+def test_get_node_color_by_distance():
+    """
+    Given: 異なる距離
+    When: _get_node_color()を呼び出す
+    Then: 距離に応じた色値が返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    assert panel._get_node_color(0) == 0  # 青
+    assert panel._get_node_color(1) == 1  # 緑
+    assert panel._get_node_color(2) == 2  # 黄
+    assert panel._get_node_color(3) == 3  # 赤
+    assert panel._get_node_color(10) == 3  # 上限
+
+def test_get_edge_color_by_strength():
+    """
+    Given: 異なる強度
+    When: _get_edge_color()を呼び出す
+    Then: 強度に応じた色コードが返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    color1 = panel._get_edge_color(0.0)  # 薄灰
+    color2 = panel._get_edge_color(1.0)  # 濃灰
+    
+    assert color1 != color2
+    assert "rgb" in color1
+```
+
+#### 8. エクスポートテスト（2件）
+
+```python
+def test_export_html():
+    """
+    Given: グラフが描画可能
+    When: export_html()を呼び出す
+    Then: HTMLファイルが作成される
+    """
+    import tempfile
+    import os
+    
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.current_center = "機械学習"
+    
+    with tempfile.NamedTemporaryFile(suffix='.html', delete=False) as tmp:
+        filename = tmp.name
+    
+    try:
+        panel.export_html(filename)
+        assert os.path.exists(filename)
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
+
+def test_export_png():
+    """
+    Given: グラフが描画可能
+    When: export_png()を呼び出す
+    Then: PNGファイルが作成される
+    """
+    import tempfile
+    import os
+    
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.current_center = "機械学習"
+    
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        filename = tmp.name
+    
+    try:
+        panel.export_png(filename)
+        assert os.path.exists(filename)
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
+```
+
+#### 9. エッジケース・異常系テスト（追加: 10件）
+
+```python
+def test_render_graph_with_empty_concepts():
+    """
+    Given: 空の概念リスト
+    When: _render_graph()を呼び出す
+    Then: 空のFigureが返される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.current_center = "機械学習"
+    
+    with patch.object(memory, 'retrieve_associated_concepts', return_value=[]):
+        fig = panel._render_graph()
+        assert fig is not None
+
+def test_calculate_positions_with_duplicate_concepts():
+    """
+    Given: 重複する概念名
+    When: _calculate_positions()を呼び出す
+    Then: エラーが発生しない（または重複が処理される）
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.current_center = "機械学習"
+    
+    concepts = [
+        {"name": "機械学習"},
+        {"name": "機械学習"}  # 重複
+    ]
+    
+    positions = panel._calculate_positions(concepts)
+    # 重複処理の実装に応じて検証
+```
+
+#### 10. パラメータ化テスト（追加: 5件）
+
+```python
+@pytest.mark.parametrize("concept", ["機械学習", "Python", "データベース"])
+def test_update_center_various_concepts(concept):
+    """
+    Given: 様々な概念名
+    When: update_center()を呼び出す
+    Then: すべての概念名が正しく設定される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    panel.update_center(concept)
+    
+    assert panel.current_center == concept
+
+@pytest.mark.parametrize("max_nodes", [10, 50, 100, 1000])
+def test_render_graph_various_max_nodes(max_nodes):
+    """
+    Given: 様々なmax_nodes値
+    When: _render_graph()を呼び出す
+    Then: max_nodes数までに制限される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    panel.max_nodes = max_nodes
+    panel.current_center = "機械学習"
+    
+    # 実装に応じて検証
+```
+
+---
+
+## Week 3-4: 自律的外部サーチエージェント - テスト仕様（TDD）
+
+### テストファイル: `tests/test_autonomous_search.py`
+
+**テストクラス**: `TestAutonomousSearchAgent`
+
+**テストケース一覧（45件）**:
+
+#### 1. 初期化テスト（3件）
+
+```python
+def test_agent_init_without_api_key():
+    """
+    Given: APIキーなし
+    When: AutonomousSearchAgentを初期化
+    Then: serper_api_keyがNoneで初期化される
+    """
+    agent = AutonomousSearchAgent()
+    
+    assert agent.serper_api_key is None
+    assert agent.kb is not None
+
+def test_agent_init_with_api_key():
+    """
+    Given: APIキー
+    When: AutonomousSearchAgentを初期化
+    Then: serper_api_keyが設定される
+    """
+    agent = AutonomousSearchAgent(serper_api_key="test_key")
+    
+    assert agent.serper_api_key == "test_key"
+
+def test_agent_init_wikipedia_lang_set():
+    """
+    Given: AutonomousSearchAgent
+    When: 初期化
+    Then: Wikipediaの言語が日本語に設定される
+    """
+    agent = AutonomousSearchAgent()
+    
+    import wikipedia
+    assert wikipedia.language == "ja"
+```
+
+#### 2. 検索判定テスト（8件）
+
+```python
+def test_should_search_no_kb_results():
+    """
+    Given: KB検索結果が空
+    When: should_search()を呼び出す
+    Then: Trueが返される（検索実行）
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.should_search("質問", [])
+    
+    assert result is True
+
+def test_should_search_low_similarity():
+    """
+    Given: 信頼度が0.6未満
+    When: should_search()を呼び出す
+    Then: Trueが返される（検索実行）
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.should_search("質問", [{"similarity": 0.5}])
+    
+    assert result is True
+
+def test_should_search_threshold_boundary():
+    """
+    Given: 信頼度が0.6（境界値）
+    When: should_search()を呼び出す
+    Then: Falseが返される（検索不要）
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.should_search("質問", [{"similarity": 0.6}])
+    
+    assert result is False
+
+def test_should_search_high_similarity():
+    """
+    Given: 信頼度が0.6以上
+    When: should_search()を呼び出す
+    Then: Falseが返される（検索不要）
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.should_search("質問", [{"similarity": 0.9}])
+    
+    assert result is False
+
+def test_should_search_empty_question():
+    """
+    Given: 空の質問
+    When: should_search()を呼び出す
+    Then: エラーが発生しない
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.should_search("", [])
+    
+    assert isinstance(result, bool)
+```
+
+#### 3. Web検索テスト（10件）
+
+```python
+def test_web_search_without_api_key():
+    """
+    Given: APIキーなし
+    When: web_search()を呼び出す
+    Then: 空のリストが返される
+    """
+    agent = AutonomousSearchAgent()
+    
+    results = agent.web_search("test query")
+    
+    assert results == []
+
+@pytest.mark.asyncio
+async def test_web_search_success():
+    """
+    Given: 有効なAPIキーとクエリ
+    When: web_search()を呼び出す
+    Then: 検索結果が返される
+    """
+    agent = AutonomousSearchAgent(serper_api_key="test_key")
+    
+    with patch('requests.post') as mock_post:
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "organic": [
+                {"title": "結果1", "snippet": "説明1", "link": "http://example.com/1"},
+                {"title": "結果2", "snippet": "説明2", "link": "http://example.com/2"}
+            ]
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+        
+        results = agent.web_search("test query", max_results=5)
+        
+        assert len(results) == 2
+        assert results[0]["title"] == "結果1"
+
+def test_web_search_max_results_limit():
+    """
+    Given: max_resultsパラメータ
+    When: web_search()を呼び出す
+    Then: 指定された件数までに制限される
+    """
+    agent = AutonomousSearchAgent(serper_api_key="test_key")
+    
+    with patch('requests.post') as mock_post:
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "organic": [{"title": f"結果{i}"} for i in range(10)]
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+        
+        results = agent.web_search("test", max_results=3)
+        
+        assert len(results) == 3
+
+def test_web_search_request_exception():
+    """
+    Given: リクエストエラー
+    When: web_search()を呼び出す
+    Then: 空のリストが返される
+    """
+    agent = AutonomousSearchAgent(serper_api_key="test_key")
+    
+    with patch('requests.post', side_effect=requests.RequestException("Error")):
+        results = agent.web_search("test query")
+        
+        assert results == []
+```
+
+#### 4. Wikipedia検索テスト（10件）
+
+```python
+def test_wikipedia_search_success():
+    """
+    Given: 有効なクエリ
+    When: wikipedia_search()を呼び出す
+    Then: Wikipedia記事が返される
+    """
+    agent = AutonomousSearchAgent()
+    
+    with patch('wikipedia.page') as mock_page:
+        mock_page_instance = Mock()
+        mock_page_instance.title = "Python"
+        mock_page_instance.url = "https://ja.wikipedia.org/wiki/Python"
+        mock_page.return_value = mock_page_instance
+        
+        with patch('wikipedia.summary', return_value="Pythonはプログラミング言語です"):
+            result = agent.wikipedia_search("Python")
+            
+            assert result is not None
+            assert result["title"] == "Python"
+            assert "summary" in result
+
+def test_wikipedia_search_page_error():
+    """
+    Given: 存在しないページ
+    When: wikipedia_search()を呼び出す
+    Then: Noneが返される
+    """
+    agent = AutonomousSearchAgent()
+    
+    with patch('wikipedia.page', side_effect=wikipedia.exceptions.PageError("Page not found")):
+        result = agent.wikipedia_search("存在しないページ")
+        
+        assert result is None
+
+def test_wikipedia_search_disambiguation():
+    """
+    Given: 曖昧性解消が必要なクエリ
+    When: wikipedia_search()を呼び出す
+    Then: 最初の候補で再試行される
+    """
+    agent = AutonomousSearchAgent()
+    
+    with patch('wikipedia.page') as mock_page:
+        # 最初の呼び出しでDisambiguationError
+        mock_page.side_effect = [
+            wikipedia.exceptions.DisambiguationError("曖昧", ["Python (言語)", "Python (蛇)"]),
+            Mock(title="Python (言語)", url="https://ja.wikipedia.org/wiki/Python_(言語)")
+        ]
+        
+        with patch('wikipedia.summary', return_value="Pythonはプログラミング言語です"):
+            result = agent.wikipedia_search("Python")
+            
+            assert result is not None
+            assert mock_page.call_count == 2
+```
+
+#### 5. KB保存テスト（5件）
+
+```python
+def test_save_to_kb():
+    """
+    Given: コンテンツとカテゴリ
+    When: save_to_kb()を呼び出す
+    Then: KBに保存される
+    """
+    agent = AutonomousSearchAgent()
+    
+    with patch.object(agent.kb, 'store') as mock_store:
+        agent.save_to_kb("コンテンツ", "news")
+        
+        mock_store.assert_called_once_with(
+            content="コンテンツ",
+            category="news",
+            metadata={"source": "autonomous_search"}
+        )
+
+def test_save_to_kb_custom_source():
+    """
+    Given: カスタムソース
+    When: save_to_kb()を呼び出す
+    Then: ソースが設定される
+    """
+    agent = AutonomousSearchAgent()
+    
+    with patch.object(agent.kb, 'store') as mock_store:
+        agent.save_to_kb("コンテンツ", "news", source="manual")
+        
+        mock_store.assert_called_once_with(
+            content="コンテンツ",
+            category="news",
+            metadata={"source": "manual"}
+        )
+```
+
+#### 6. エッジケース・異常系テスト（追加: 10件）
+
+```python
+def test_web_search_timeout():
+    """
+    Given: タイムアウトエラー
+    When: web_search()を呼び出す
+    Then: 空のリストが返される
+    """
+    agent = AutonomousSearchAgent(serper_api_key="test_key")
+    
+    with patch('requests.post', side_effect=requests.Timeout("Timeout")):
+        results = agent.web_search("test")
+        
+        assert results == []
+
+def test_wikipedia_search_empty_query():
+    """
+    Given: 空のクエリ
+    When: wikipedia_search()を呼び出す
+    Then: エラーが発生する（またはNoneが返される）
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.wikipedia_search("")
+    
+    # 実装に応じてエラーまたはNone
+    assert result is None or isinstance(result, dict)
+```
+
+#### 7. パラメータ化テスト（追加: 5件）
+
+```python
+@pytest.mark.parametrize("similarity,expected", [
+    (0.0, True),
+    (0.5, True),
+    (0.6, False),
+    (0.9, False),
+])
+def test_should_search_parametrized(similarity, expected):
+    """
+    Given: 様々な信頼度
+    When: should_search()を呼び出す
+    Then: 期待される結果が返される
+    """
+    agent = AutonomousSearchAgent()
+    
+    result = agent.should_search("質問", [{"similarity": similarity}])
+    
+    assert result == expected
+
+@pytest.mark.parametrize("max_results", [1, 5, 10, 20])
+def test_web_search_various_max_results(max_results):
+    """
+    Given: 様々なmax_results値
+    When: web_search()を呼び出す
+    Then: 指定された件数までに制限される
+    """
+    agent = AutonomousSearchAgent(serper_api_key="test_key")
+    
+    with patch('requests.post') as mock_post:
+        mock_response = Mock()
+        mock_response.json.return_value = {
+            "organic": [{"title": f"結果{i}"} for i in range(20)]
+        }
+        mock_response.raise_for_status = Mock()
+        mock_post.return_value = mock_response
+        
+        results = agent.web_search("test", max_results=max_results)
+        
+        assert len(results) == max_results
+```
+
+### テストファイル: `tests/test_scheduler.py`
+
+**テストクラス**: `TestUpdateScheduler`
+
+**テストケース一覧（20件）**:
+
+#### 1. 初期化テスト（2件）
+
+```python
+def test_scheduler_init():
+    """
+    Given: AutonomousSearchAgentインスタンス
+    When: UpdateSchedulerを初期化
+    Then: search_agentが設定される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    assert scheduler.search_agent is agent
+```
+
+#### 2. スケジュール設定テスト（6件）
+
+```python
+def test_schedule_daily_news():
+    """
+    Given: UpdateScheduler
+    When: schedule_daily_news()を呼び出す
+    Then: 毎朝6時のスケジュールが設定される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    with patch('schedule.every') as mock_every:
+        mock_day = Mock()
+        mock_day.day = Mock()
+        mock_day.day.at = Mock(return_value=mock_day)
+        mock_every.return_value = mock_day
+        
+        scheduler.schedule_daily_news()
+        
+        mock_day.day.at.assert_called_with("06:00")
+
+def test_schedule_weekly_movies():
+    """
+    Given: UpdateScheduler
+    When: schedule_weekly_movies()を呼び出す
+    Then: 毎週日曜10時のスケジュールが設定される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    with patch('schedule.every') as mock_every:
+        mock_sunday = Mock()
+        mock_sunday.sunday = Mock()
+        mock_sunday.sunday.at = Mock(return_value=mock_sunday)
+        mock_every.return_value = mock_sunday
+        
+        scheduler.schedule_weekly_movies()
+        
+        mock_sunday.sunday.at.assert_called_with("10:00")
+```
+
+#### 3. フェッチ関数テスト（6件）
+
+```python
+def test_fetch_news():
+    """
+    Given: UpdateScheduler
+    When: _fetch_news()を呼び出す
+    Then: ニュースが検索され、KBに保存される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    with patch.object(agent, 'web_search', return_value=[
+        {"title": "ニュース1", "snippet": "説明1"}
+    ]) as mock_search:
+        with patch.object(agent, 'save_to_kb') as mock_save:
+            scheduler._fetch_news()
+            
+            mock_search.assert_called_once_with("最新ニュース", max_results=5)
+            mock_save.assert_called()
+
+def test_fetch_movies():
+    """
+    Given: UpdateScheduler
+    When: _fetch_movies()を呼び出す
+    Then: 映画情報が検索され、KBに保存される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    with patch.object(agent, 'web_search', return_value=[
+        {"title": "映画1", "snippet": "説明1"}
+    ]) as mock_search:
+        with patch.object(agent, 'save_to_kb') as mock_save:
+            scheduler._fetch_movies()
+            
+            mock_search.assert_called_once_with("今週公開映画", max_results=3)
+            mock_save.assert_called()
+```
+
+#### 4. スケジューラ実行テスト（4件）
+
+```python
+def test_run_executes_pending():
+    """
+    Given: UpdateScheduler
+    When: run()を呼び出す
+    Then: 保留中のジョブが実行される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    with patch('schedule.run_pending') as mock_run:
+        with patch('time.sleep', side_effect=KeyboardInterrupt):
+            try:
+                scheduler.run()
+            except KeyboardInterrupt:
+                pass
+            
+            mock_run.assert_called()
+```
+
+#### 5. エッジケース・異常系テスト（追加: 5件）
+
+```python
+def test_fetch_news_empty_results():
+    """
+    Given: 検索結果が空
+    When: _fetch_news()を呼び出す
+    Then: KB保存が呼ばれない
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    with patch.object(agent, 'web_search', return_value=[]):
+        with patch.object(agent, 'save_to_kb') as mock_save:
+            scheduler._fetch_news()
+            
+            mock_save.assert_not_called()
+```
+
+---
+
+## 統合テスト仕様（TDD）
+
+### テストファイル: `tests/test_integration_visualization.py`
+
+**テストケース一覧（10件）**:
+
+```python
+"""3D可視化の統合テスト."""
+
+import pytest
+from visualization.association_3d import AssociationVisualizationPanel
+from memory.associative import AssociativeMemory
+
+
+@pytest.mark.integration
+def test_visualization_with_associative_memory():
+    """
+    Given: 連想記憶に概念が存在
+    When: 可視化パネルでグラフを描画
+    Then: 連想記憶から概念が取得され、グラフが描画される
+    """
+    memory = AssociativeMemory(db_path=":memory:")
+    panel = AssociationVisualizationPanel(memory)
+    
+    # 概念追加
+    memory.add_concept("機械学習", embedding=[0.1]*128, metadata={})
+    memory.add_concept("Python", embedding=[0.2]*128, metadata={})
+    memory.link_concepts("機械学習", "Python", "related", strength=0.8)
+    
+    panel.current_center = "機械学習"
+    panel.is_enabled = True
+    fig = panel._render_graph()
+    
+    assert fig is not None
+    assert len(fig.data) > 0
+
+# ... 他9件（リアルタイム更新、大量データ、パフォーマンステストなど）
+```
+
+### テストファイル: `tests/test_integration_search.py`
+
+**テストケース一覧（10件）**:
+
+```python
+"""自律サーチの統合テスト."""
+
+import pytest
+from agents.autonomous_search import AutonomousSearchAgent
+from memory.knowledge_base import KnowledgeBase
+from scheduler.update_scheduler import UpdateScheduler
+
+
+@pytest.mark.integration
+def test_search_and_save_to_kb():
+    """
+    Given: 検索エージェントとKB
+    When: 検索してKBに保存
+    Then: KBに正しく保存される
+    """
+    agent = AutonomousSearchAgent()
+    
+    with patch.object(agent, 'web_search', return_value=[
+        {"title": "結果", "snippet": "説明", "link": "http://example.com"}
+    ]):
+        agent.save_to_kb("テストコンテンツ", "news")
+        
+        # KBから検索して確認
+        results = agent.kb.search("テスト", top_k=1)
+        assert len(results) > 0
+
+@pytest.mark.integration
+def test_scheduler_integration():
+    """
+    Given: スケジューラと検索エージェント
+    When: スケジュールを設定して実行
+    Then: 検索とKB保存が実行される
+    """
+    agent = AutonomousSearchAgent()
+    scheduler = UpdateScheduler(agent)
+    
+    scheduler.schedule_daily_news()
+    
+    # スケジュールが設定されたことを確認
+    # 実際の実行は時間がかかるため、スケジュール設定のみ確認
+
+# ... 他8件（定期実行、エラー回復、パフォーマンステストなど）
+```
+
+---
+
+## テストフィクスチャ仕様
+
+### conftest.py の拡張
+
+```python
+# tests/conftest.py（拡張）
+
+import pytest
+import tempfile
+from unittest.mock import Mock, patch
+
+from visualization.association_3d import AssociationVisualizationPanel
+from memory.associative import AssociativeMemory
+from agents.autonomous_search import AutonomousSearchAgent
+from scheduler.update_scheduler import UpdateScheduler
+
+@pytest.fixture
+def associative_memory():
+    """AssociativeMemoryインスタンス"""
+    return AssociativeMemory(db_path=":memory:")
+
+@pytest.fixture
+def visualization_panel(associative_memory):
+    """AssociationVisualizationPanelインスタンス"""
+    return AssociationVisualizationPanel(associative_memory)
+
+@pytest.fixture
+def search_agent():
+    """AutonomousSearchAgentインスタンス"""
+    return AutonomousSearchAgent()
+
+@pytest.fixture
+def scheduler(search_agent):
+    """UpdateSchedulerインスタンス"""
+    return UpdateScheduler(search_agent)
+
+@pytest.fixture
+def mock_requests():
+    """requests.postのモック"""
+    with patch('requests.post') as mock:
+        yield mock
+
+@pytest.fixture
+def mock_wikipedia():
+    """wikipediaのモック"""
+    with patch('wikipedia.page') as mock_page, \
+         patch('wikipedia.summary') as mock_summary:
+        yield mock_page, mock_summary
+```
+
+---
+
+## テスト実行戦略
+
+### TDD実装順序（詳細版）
+
+#### Week 1-2: 3D可視化パネル
+
+**Day 1: 初期化・ON/OFF切り替えテスト（10件）→ 実装**
+- 初期化: デフォルト状態、カスタム設定、エラーハンドリング
+- ON/OFF切り替え: 状態変更、複数回切り替え
+
+**Day 2: 中心概念更新・グラフ描画テスト（15件）→ 実装**
+- 中心概念更新: 設定、描画トリガー、エッジケース
+- グラフ描画: 基本描画、空データ、max_nodes制限
+
+**Day 3: 座標計算・ノード・エッジ作成テスト（13件）→ 実装**
+- 座標計算: 中心配置、depthベース配置
+- ノード・エッジ作成: トレース作成、色・サイズ計算
+
+**Day 4: エクスポート・エッジケーステスト（12件）→ 実装**
+- エクスポート: HTML、PNG出力
+- エッジケース: 空データ、重複、異常値
+
+**Day 5-6: 統合テスト（10件）→ 実装・リファクタリング**
+- 連想記憶連携、リアルタイム更新、パフォーマンス
+
+#### Week 3-4: 自律サーチエージェント
+
+**Day 1-2: 検索判定・Web検索テスト（18件）→ 実装**
+- 検索判定: KB結果なし、低信頼度、境界値
+- Web検索: APIキーなし、成功、エラーハンドリング
+
+**Day 3: Wikipedia検索・KB保存テスト（15件）→ 実装**
+- Wikipedia検索: 成功、PageError、DisambiguationError
+- KB保存: 基本保存、カスタムソース
+
+**Day 4: スケジューラテスト（20件）→ 実装**
+- スケジュール設定: 毎日、毎週、毎月
+- フェッチ関数: ニュース、映画、技術情報
+- スケジューラ実行: 保留ジョブ実行
+
+**Day 5-6: 統合テスト（10件）→ 実装・リファクタリング**
+- KB連携、スケジューラ統合、エラー回復
+
+### テスト品質基準
+
+**必須要件**:
+- ✅ **テスト成功率**: 100%（全130件以上のテストが成功）
+- ✅ **コードカバレッジ**: 88%以上（平均）
+- ✅ **テスト実行時間**: 全テスト5分以内
+- ✅ **テスト独立性**: 各テストは独立して実行可能
+- ✅ **モック使用**: 外部依存（API、Wikipedia等）はモックで分離
+
+**TDDサイクル遵守**:
+- ✅ **RED**: 実装前にテストを書いている
+- ✅ **GREEN**: 最小限の実装でテストを通している
+- ✅ **REFACTOR**: リファクタリング後もテストが成功している
 
 ---
 
@@ -862,9 +2046,36 @@ python -c "from visualization.association_3d import AssociationVisualizationPane
 ### 7.2 テストコード
 
 **新規ファイル**:
-- `tests/test_visualization.py` (10件)
-- `tests/test_autonomous_search.py` (15件)
-- **合計**: 25件
+- `tests/test_visualization.py` (45件)
+  - 初期化テスト: 5件
+  - ON/OFF切り替えテスト: 5件
+  - 中心概念更新テスト: 5件
+  - グラフ描画テスト: 10件
+  - 座標計算テスト: 5件
+  - ノード・エッジ作成テスト: 8件
+  - 色・サイズ計算テスト: 5件
+  - エクスポートテスト: 2件
+  - エッジケース・異常系テスト: 10件
+  - パラメータ化テスト: 5件
+- `tests/test_autonomous_search.py` (45件)
+  - 初期化テスト: 3件
+  - 検索判定テスト: 8件
+  - Web検索テスト: 10件
+  - Wikipedia検索テスト: 10件
+  - KB保存テスト: 5件
+  - エッジケース・異常系テスト: 10件
+  - パラメータ化テスト: 5件
+- `tests/test_scheduler.py` (20件)
+  - 初期化テスト: 2件
+  - スケジュール設定テスト: 6件
+  - フェッチ関数テスト: 6件
+  - スケジューラ実行テスト: 4件
+  - エッジケース・異常系テスト: 5件
+- `tests/test_integration_visualization.py` (10件)
+- `tests/test_integration_search.py` (10件)
+- `tests/fixtures/visualization_fixtures.py`: テストデータ定義
+- `tests/fixtures/autonomous_search_fixtures.py`: テストデータ定義
+- **合計**: 130件以上（エッジケース・パラメータ化テスト含む）
 
 ### 7.3 ドキュメント
 
@@ -877,8 +2088,46 @@ python -c "from visualization.association_3d import AssociationVisualizationPane
 - [ ] 3D可視化パネル動作確認
 - [ ] 自律サーチ定期実行テスト成功
 - [ ] KB自動更新確認
-- [ ] 全テスト成功（25件）
-- [ ] カバレッジ > 83%
+- [ ] 全テスト成功（130件以上）
+- [ ] カバレッジ > 88%
+
+---
+
+## 8. Phase 7成功基準
+
+### TDD実装の成功基準
+
+**必須要件**:
+- ✅ **テストファースト**: 全機能がテスト駆動で実装されている
+- ✅ **テスト成功率**: 100%（全130件以上のテストが成功）
+- ✅ **コードカバレッジ**: 88%以上（平均）
+- ✅ **テスト実行時間**: 全テスト5分以内
+- ✅ **テスト独立性**: 各テストは独立して実行可能
+- ✅ **モック使用**: 外部依存（API、Wikipedia等）はモックで分離
+
+**TDDサイクル遵守**:
+- ✅ RED: 実装前にテストを書いている
+- ✅ GREEN: 最小限の実装でテストを通している
+- ✅ REFACTOR: リファクタリング後もテストが成功している
+
+### 定量目標
+
+| 指標 | 目標値 | 測定方法 |
+|------|--------|----------|
+| **テスト成功率** | **100%** | pytest（全130件以上） |
+| **コードカバレッジ** | **88%以上** | pytest-cov |
+| **テスト実行時間** | **< 5分** | pytest --durations |
+| 3D可視化レンダリング時間 | < 1秒 | パフォーマンステスト |
+| Web検索応答時間 | < 2秒 | API呼び出しテスト |
+| Wikipedia検索応答時間 | < 3秒 | API呼び出しテスト |
+
+### 定性目標
+
+✅ **TDD実装完了**: 全機能がテスト駆動で実装されている
+✅ **テスト仕様完備**: 全130件以上のテストケースが定義されている
+✅ **3D可視化動作**: 連想記憶ネットワークの可視化
+✅ **自律サーチ動作**: 自動Web検索・KB保存
+✅ **スケジューラ動作**: 定期更新実行
 
 ---
 
