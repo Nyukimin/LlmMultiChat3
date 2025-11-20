@@ -305,6 +305,27 @@ class RouterNode:
     
     def route(self, state: Dict[str, Any]) -> str:
         """次に応答するキャラを決定"""
+        # Phase 3からのキャラクター指定を優先（正規化）
+        if state.get('next_character'):
+            char = state['next_character']
+            # キャラクター名の正規化マッピング
+            char_map = {
+                'ノクス': 'nox',
+                'のくす': 'nox',
+                'クラリス': 'claris',
+                'くらりす': 'claris',
+                'ルミナ': 'lumina',
+                'るみな': 'lumina',
+                'lumina': 'lumina',
+                'claris': 'claris',
+                'nox': 'nox',
+                'clarisse': 'claris',
+            }
+            normalized = char_map.get(char, char.lower())
+            # LangGraphのエッジマッピングに存在するキーのみ返す
+            if normalized in ['lumina', 'claris', 'nox']:
+                return normalized
+        
         user_input = state.get('user_input', '').lower()
         last_speaker = state.get('last_speaker', '')
         

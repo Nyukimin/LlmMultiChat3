@@ -169,7 +169,7 @@ class MultiLLMChat:
             return "end"
         return "continue"
     
-    def chat(self, user_input: str, session_id: str = None, user_id: str = None) -> Dict[str, Any]:
+    def chat(self, user_input: str, session_id: str = None, user_id: str = None, character: str = None) -> Dict[str, Any]:
         """
         ユーザー入力を処理して応答を生成
         
@@ -217,7 +217,7 @@ class MultiLLMChat:
             "current_turn": self.conv_state.current_turn,
             "max_turns": getattr(self.config, 'max_turns', 12),
             "last_speaker": self.conv_state.last_speaker or "",
-            "next_character": "",
+            "next_character": character or "",
             "session_id": self.conv_state.session_id,
             "start_time": self.conv_state.start_time.isoformat()
         }

@@ -452,7 +452,7 @@ async def list_sessions(
                 created_at=sess.get('last_activity', datetime.utcnow().isoformat()),
                 last_activity=sess.get('last_activity', datetime.utcnow().isoformat()),
                 message_count=sess.get('turn_count', 0),
-                characters_used=[]  # TODO: キャラクター情報追加
+                characters_used=sess.get('characters_used', ['lumina'])  # Phase 1-3統合: セッションデータからキャラクター取得
             )
             for sess in result['sessions'][offset:offset+limit]
         ]

@@ -392,7 +392,180 @@ def validate_session_id(session_id: str) -> bool:
     return bool(re.match(pattern, session_id))
 ```
 
-#### 4.1.3 コマンド検証
+#### 4.1.3 話者名検証
+
+**検証ルール**:
+- 長さ: 1-50文字
+- 禁止文字: `<`, `>`, `/`, `\`, `..`
+
+**Python実装**:
+```python
+from validators import InputValidator
+
+try:
+    is_valid = InputValidator.validate_speaker_name(speaker)
+except ValidationError as e:
+    return {"status": "error", "error_message": str(e)}
+```
+
+**実装コード** ([`validators.py:117`](validators.py:117)):
+```python
+@staticmethod
+def validate_speaker_name(speaker: str) -> bool:
+    """話者名検証"""
+    if not speaker or len(speaker) > 50:
+        return False
+    
+    dangerous_chars = ['<', '>', '/', '\', '..']
+    for char in dangerous_chars:
+        if char in speaker:
+            return False
+    
+    return True
+```
+
+#### 4.1.4 ファイルパス検証（パストラバーサル対策）
+
+**検証項目**:
+
+| 項目 | 検証内容 | エラーコード |
+|-----|---------|-------------|
+| パストラバーサル | `../`, `..\` 禁止 | E4004 |
+| 絶対パス | `/`始まり、`C:`等禁止 | E4005 |
+| 拡張子 | 許可リストチェック | E4006 |
+
+**Python実装** ([`validators.py:247`](validators.py:247)):
+```python
+from validators import InputValidator
+
+try:
+    validated_path = InputValidator.validate_file_path(
+        filepath,
+        allowed_extensions=['.json', '.txt', '.md']
+    )
+except ValidationError as e:
+    return {"status": "error", "error_code": e.error_code}
+```
+
+**実装詳細**:
+```python
+@staticmethod
+def validate_file_path(filepath: str, allowed_extensions: Optional[List[str]] = None) -> str:
+    """ファイルパス検証（パストラバーサル対策）"""
+    if not filepath:
+        raise ValidationError("ファイルパスが空です", field="filepath")
+    
+    # パストラバーサル対策（../ や ..\ を含まない）
+    if '..' in filepath:
+        raise ValidationError(
+            "不正なファイルパスです（パストラバーサル検出）",
+            field="filepath",
+            error_code="E4004"
+        )
+    
+    # 絶対パス禁止（ルートディレクトリアクセス防止）
+    if filepath.startswith('/') or (len(filepath) > 1 and filepath[1] == ':'):
+        raise ValidationError(
+            "絶対パスは許可されていません",
+            field="filepath",
+            error_code="E4005"
+        )
+    
+    # 拡張子チェック
+    if allowed_extensions:
+        if not any(filepath.endswith(ext) for ext in allowed_extensions):
+            raise ValidationError(
+                f"許可されていない拡張子です（許可: {', '.join(allowed_extensions)}）",
+                field="filepath",
+                error_code="E4006"
+            )
+    
+    return filepath
+```
+
+#### 4.1.5 キャラクター名検証
+
+**許可リスト**:
+```python
+ALLOWED_CHARACTERS = ['ルミナ', 'クラリス', 'ノクス', 'Router']
+```
+
+**実装** ([`validators.py:295`](validators.py:295)):
+```python
+@staticmethod
+def validate_character_name(character_name: str) -> str:
+    """キャラクター名検証"""
+    if not character_name:
+        raise ValidationError(
+            "キャラクター名が空です",
+            field="character_name"
+        )
+    
+    if character_name not in ALLOWED_CHARACTERS:
+        raise ValidationError(
+            f"不正なキャラクター名: {character_name}",
+            field="character_name",
+            error_code="E4007"
+        )
+    
+    return character_name
+```
+
+#### 4.1.6 メタデータ検証
+
+**検証ルール**:
+- 型: dict型のみ許可
+- キー数: 最大50個
+- 値の長さ: 文字列の場合最大1000文字
+
+**実装** ([`validators.py:326`](validators.py:326)):
+```python
+@staticmethod
+def validate_metadata(metadata: dict, max_keys: int = 50, max_value_length: int = 1000) -> dict:
+    """メタデータ検証"""
+    if not isinstance(metadata, dict):
+        raise ValidationError(
+            "メタデータは辞書型である必要があります",
+            field="metadata"
+        )
+    
+    # キー数チェック
+    if len(metadata) > max_keys:
+        raise ValidationError(
+            f"メタデータのキー数が多すぎます（最大{max_keys}個）",
+            field="metadata",
+            error_code="E4008"
+        )
+    
+    # 各値の長さチェック
+    for key, value in metadata.items():
+        if isinstance(value, str) and len(value) > max_value_length:
+            raise ValidationError(
+                f"メタデータ値が長すぎます: {key}（最大{max_value_length}文字）",
+                field="metadata",
+                error_code="E4009"
+            )
+    
+    return metadata
+```
+
+#### 4.1.7 コマンド検証
+
+**検証ルール**:
+- 長さ: 3-100文字
+- 文字種: 英数字、ハイフン（`-`）、アンダースコア（`_`）のみ
+- パターン: `^[a-zA-Z0-9_-]{3,100}$`
+
+**例**:
+```python
+import re
+
+def validate_session_id(session_id: str) -> bool:
+    pattern = r'^[a-zA-Z0-9_-]{3,100}$'
+    return bool(re.match(pattern, session_id))
+```
+
+#### 4.1.7 コマンド検証
 
 **許可リスト**:
 ```python
@@ -415,6 +588,23 @@ except ValidationError as e:
 ### 4.2 サニタイゼーション
 
 #### 4.2.1 ログ出力サニタイゼーション
+
+**実装** ([`validators.py:382`](validators.py:382)):
+```python
+@staticmethod
+def sanitize_for_log(text: str, max_length: int = 200) -> str:
+    """ログ出力用サニタイゼーション（機密情報マスク）"""
+    # 長さ制限
+    if len(text) > max_length:
+        text = text[:max_length] + "..."
+    
+    # 機密情報パターンマスク
+    text = re.sub(r'(password|pwd)["\s:=]+([^\s]+)', r'\1=***MASKED***', text, flags=re.IGNORECASE)
+    text = re.sub(r'(api[_-]?key)["\s:=]+([^\s]+)', r'\1=***MASKED***', text, flags=re.IGNORECASE)
+    text = re.sub(r'(token|bearer)["\s:=]+([^\s]+)', r'\1=***MASKED***', text, flags=re.IGNORECASE)
+    
+    return text
+```
 
 **マスク対象**:
 - パスワード: `password=***`
@@ -489,6 +679,12 @@ sanitized_log = "User login: password=***, api_key=***"
 | E4001 | LLMCallError | LLM呼び出しエラー |
 | E4002 | LLMTimeoutError | LLMタイムアウト |
 | E4003 | LLMNodeError | LLMノードエラー |
+| E4004 | ValidationError | パストラバーサル検出（ファイルパス） |
+| E4005 | ValidationError | 絶対パス禁止（ファイルパス） |
+| E4006 | ValidationError | 許可されていない拡張子 |
+| E4007 | ValidationError | 不正なキャラクター名 |
+| E4008 | ValidationError | メタデータキー数超過 |
+| E4009 | ValidationError | メタデータ値長さ超過 |
 
 #### 5.2.4 設定エラー（E5xxx）
 
@@ -552,7 +748,66 @@ record_cache_miss(backend="redis")
 - Redisミス数
 - JSONフォールバック数
 
-#### 6.1.3 エラーメトリクス
+#### 6.1.3 記憶操作メトリクス
+
+**実装** ([`metrics.py:108`](metrics.py:108)):
+```python
+from metrics import MetricsCollector
+
+collector = MetricsCollector()
+collector.record_memory_operation(
+    operation_type="read",
+    duration_ms=12.5,
+    success=True
+)
+```
+
+**収集データ**:
+- 総操作数
+- 読み込み回数
+- 書き込み回数
+- エラー数
+- 操作別平均時間
+
+**operation_type**: `read`, `write`, `update`, `delete`
+
+#### 6.1.4 LLMフォールバックメトリクス
+
+**実装** ([`metrics.py:93`](metrics.py:93)):
+```python
+from metrics import MetricsCollector
+
+collector = MetricsCollector()
+collector.record_llm_fallback(character="ルミナ")
+```
+
+**収集データ**:
+- フォールバック総数
+- キャラクター別フォールバック数
+- タイムスタンプ付き詳細ログ
+
+#### 6.1.5 パフォーマンスレポート
+
+**実装** ([`metrics.py:287`](metrics.py:287)):
+```python
+from metrics import MetricsCollector
+
+collector = MetricsCollector()
+report = collector.get_performance_report()
+print(report)
+```
+
+**レポート内容**:
+- セッション情報（開始・終了時刻、実行時間）
+- LLM統計（呼び出し数、平均/中央値/最小/最大時間、エラー数、リトライ数）
+- 記憶システム統計（総操作数、読み書き回数、エラー数）
+- 会話統計（総ターン数、ユーザー入力数、システム応答数、セッション数）
+- キャラクター別応答数
+- エラー統計（総エラー数、種別集計）
+
+#### 6.1.6 エラーメトリクス
+
+#### 6.1.6 エラーメトリクス
 
 ```python
 from metrics import record_error
@@ -665,9 +920,51 @@ Content-Security-Policy: default-src 'self'; script-src 'self'
 
 ---
 
-## 9. WebSocket API（Phase 3実装予定）
+## 9. WebSocket API（Phase 3実装済み）
 
-### 9.1 接続
+### 9.1 接続管理
+
+**実装** ([`api/websocket.py:47`](api/websocket.py:47)):
+
+```python
+class ConnectionManager:
+    """WebSocket接続管理クラス"""
+    
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+        self.connection_metadata: Dict[str, Dict[str, Any]] = {}
+    
+    async def connect(self, websocket: WebSocket, user_id: Optional[str] = None) -> str:
+        """WebSocket接続を受け入れ"""
+        await websocket.accept()
+        connection_id = user_id or f"guest-{id(websocket)}"
+        self.active_connections[connection_id] = websocket
+        return connection_id
+    
+    def disconnect(self, connection_id: str):
+        """WebSocket接続を切断"""
+        if connection_id in self.active_connections:
+            del self.active_connections[connection_id]
+            del self.connection_metadata[connection_id]
+```
+
+### 9.2 メッセージ型定義
+
+**サポートメッセージ型**:
+
+| メッセージ型 | 方向 | 説明 |
+|-------------|------|------|
+| `auth` | Client → Server | 認証リクエスト |
+| `auth_response` | Server → Client | 認証結果 |
+| `chat` | Client → Server | 会話リクエスト |
+| `response` | Server → Client | 会話応答 |
+| `typing` | Server → Client | タイピング状態通知 |
+| `error` | Server → Client | エラー通知 |
+| `disconnect` | Client → Server | 切断通知 |
+
+### 9.3 接続フロー
+
+**1. WebSocket接続**
 
 ```javascript
 const ws = new WebSocket("ws://localhost:8000/ws/chat");
@@ -680,7 +977,35 @@ ws.onopen = () => {
 };
 ```
 
-### 9.2 メッセージ送信
+### 9.4 認証（実装済み）
+
+**認証メッセージ** ([`api/websocket.py:211`](api/websocket.py:211)):
+```javascript
+ws.send(JSON.stringify({
+  type: "auth",
+  token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}));
+```
+
+**認証成功レスポンス**:
+```json
+{
+  "type": "auth_response",
+  "status": "success",
+  "user_id": "user_001"
+}
+```
+
+**認証失敗レスポンス**:
+```json
+{
+  "type": "auth_response",
+  "status": "error",
+  "message": "Invalid or expired token"
+}
+```
+
+### 9.5 会話メッセージ送信
 
 ```javascript
 ws.send(JSON.stringify({
@@ -690,7 +1015,7 @@ ws.send(JSON.stringify({
 }));
 ```
 
-### 9.3 メッセージ受信
+### 9.6 メッセージ受信
 
 ```javascript
 ws.onmessage = (event) => {

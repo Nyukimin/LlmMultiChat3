@@ -12,6 +12,7 @@ from datetime import datetime
 from memory import ShortTermMemory, MidTermMemory, LongTermMemory, KnowledgeBase
 from exceptions import ShortTermMemoryError, MidTermMemoryError, LongTermMemoryError
 from utils import Logger
+from validators import InputValidator
 from memory.base import MemoryConfig
 from memory.short_term import ConversationBuffer
 from memory.mid_term import SessionManager
@@ -96,17 +97,29 @@ class MemorySystemManager:
             self.logger.log_error(e, context="add_conversation_turn")
             raise ShortTermMemoryError(f"会話ターン追加失敗: {e}") from e
     
-    def get_conversation_context(self, max_turns: int = 6) -> str:
+    def get_conversation_context(self, session_id: str = None, max_turns: int = 6) -> Dict[str, Any]:
         """
         会話コンテキストを取得
         
         Args:
+            session_id: セッションID（Phase 3統合用、現在は未使用）
             max_turns: 最大ターン数
             
         Returns:
-            フォーマットされた会話文字列
+            会話コンテキスト辞書
         """
-        return self.conversation_buffer.get_context_string(max_turns)
+        from datetime import datetime
+        
+        # 会話履歴取得
+        history_str = self.conversation_buffer.get_context_string(max_turns)
+        
+        # 辞書形式で返却
+        return {
+            "history": self.conversation_buffer.turns[-max_turns:] if hasattr(self.conversation_buffer, 'turns') else [],
+            "context_string": history_str,
+            "last_activity": datetime.now().isoformat(),
+            "total_turns": len(self.conversation_buffer.turns) if hasattr(self.conversation_buffer, 'turns') else 0
+        }
     
     def save_session(self, session_id: str, history: List[Dict],
                     metadata: Dict = None) -> bool:
@@ -382,6 +395,34 @@ class MemorySystemManager:
         """会話バッファをリセット"""
         self.conversation_buffer.clear()
         self.stats['total_conversations'] += 1
+
+    def clear_session(self, session_id: str) -> bool:
+        """
+        セッションをクリア
+        
+        Args:
+            session_id: セッションID（Phase 3統合用）
+            
+        Returns:
+            bool: クリア成功（True）
+        """
+        try:
+            # 会話バッファをクリア
+            self.conversation_buffer.clear()
+            
+            # セッション管理データがあれば削除
+            if hasattr(self, 'session_manager'):
+                # session_managerによる削除処理（将来の拡張用）
+                pass
+            
+            # ログ出力（loggerのメソッド名を修正）
+            if hasattr(self.logger, 'log_event'):
+                self.logger.log_event('session_cleared', {'session_id': session_id})
+            # self.logger.info(f"Session cleared: {session_id}")  # infoメソッドは存在しない
+            return True
+        except Exception as e:
+            self.logger.log_error(e, context="clear_session")
+            return False
     
     def initialize_characters(self):
         """全キャラクターのKPIを初期化"""

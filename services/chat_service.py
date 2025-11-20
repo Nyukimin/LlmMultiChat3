@@ -79,6 +79,7 @@ class ChatService:
                 self.multi_llm_chat.chat,
                 user_input=user_input,
                 session_id=phase1_session_id,
+                character=character,
             )
 
             # 処理時間計算
@@ -88,7 +89,7 @@ class ChatService:
             response = {
                 "session_id": session_id,  # クライアント指定のセッションIDを返却
                 "response": result["response"],
-                "character": result["character"],
+                "character": result.get("speaker", character or "lumina"),  # speakerまたは指定キャラクター
                 "timestamp": datetime.now().isoformat(),
                 "metadata": {
                     "model": result.get("metadata", {}).get("model", "unknown"),
@@ -98,7 +99,7 @@ class ChatService:
             }
 
             logger.info(
-                f"Chat success: user={user_id}, character={result['character']}, time={processing_time:.2f}ms"
+                f"Chat success: user={user_id}, character={response['character']}, time={processing_time:.2f}ms"
             )
             return response
 
@@ -177,7 +178,7 @@ class ChatService:
 
             # Phase 1記憶マネージャーから履歴取得
             context = await asyncio.to_thread(
-                self.multi_llm_chat.memory_manager.get_conversation_context,
+                self.multi_llm_chat.memory.get_conversation_context,
                 session_id=phase1_session_id,
             )
 
@@ -218,7 +219,7 @@ class ChatService:
             for session_id, phase1_session_id in user_session_map.items():
                 # 各セッションの情報取得
                 context = await asyncio.to_thread(
-                    self.multi_llm_chat.memory_manager.get_conversation_context,
+                    self.multi_llm_chat.memory.get_conversation_context,
                     session_id=phase1_session_id,
                 )
 
@@ -255,7 +256,7 @@ class ChatService:
 
             # Phase 1記憶マネージャーでセッションクリア
             await asyncio.to_thread(
-                self.multi_llm_chat.memory_manager.clear_session,
+                self.multi_llm_chat.memory.clear_session,
                 session_id=phase1_session_id,
             )
 
