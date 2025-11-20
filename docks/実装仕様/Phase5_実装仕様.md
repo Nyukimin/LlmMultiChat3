@@ -15,8 +15,13 @@
 3. [Week 1-2: 対話スタイル動的調整](#3-week-1-2-対話スタイル動的調整)
 4. [Week 3-4: 自己省察・一貫性チェック](#4-week-3-4-自己省察一貫性チェック)
 5. [技術スタック](#5-技術スタック)
-6. [テスト計画](#6-テスト計画)
+6. [テスト計画（TDD実装）](#6-テスト計画tdd実装)
+   - [Week 1-2: 対話スタイル動的調整 - テスト仕様（TDD）](#week-1-2-対話スタイル動的調整---テスト仕様tdd)
+   - [Week 3-4: 自己省察・一貫性チェック - テスト仕様（TDD）](#week-3-4-自己省察一貫性チェック---テスト仕様tdd)
+   - [テストフィクスチャ仕様](#テストフィクスチャ仕様)
+   - [テスト実行戦略](#テスト実行戦略)
 7. [成果物](#7-成果物)
+8. [Phase 5成功基準](#8-phase-5成功基準)
 
 ---
 
@@ -25,6 +30,23 @@
 ### 1.1 目的
 
 ユーザーに合わせた対話スタイル調整と自己改善機能を実装し、**個々のユーザーに最適化された会話体験**を提供します。
+
+### 1.2 TDD実装アプローチ
+
+Phase 5は**テスト駆動開発（TDD）**で実装します。各機能は以下のサイクルで開発します：
+
+```
+1. 🔴 RED: テストを書く（失敗する）
+2. 🟢 GREEN: 最小限の実装でテストを通す
+3. 🔵 REFACTOR: コードをリファクタリング（テストは常に成功）
+```
+
+**TDDの原則**:
+- ✅ 実装前に必ずテストを書く
+- ✅ 1つのテスト → 1つの実装 → リファクタリングのサイクル
+- ✅ Given-When-Then形式でテストを記述
+- ✅ 各テストは独立して実行可能
+- ✅ 外部依存はモックで分離
 
 ### 1.2 主要機能
 
@@ -778,39 +800,809 @@ scikit-learn==1.3.0     # トピック抽出・類似度計算
 
 ---
 
-## 6. テスト計画
+## 6. テスト計画（TDD実装）
 
-### 6.1 テスト構成
+### 6.1 テストカバレッジ目標
 
-| テストファイル | テスト件数 | カバレッジ目標 |
-|---------------|-----------|---------------|
-| `tests/test_dialogue_style.py` | 12件 | > 90% |
-| `tests/test_self_reflection.py` | 18件 | > 85% |
-| **合計** | **30件** | **> 88%** |
+| カテゴリ | ファイル | テスト数 | カバレッジ目標 | 優先度 |
+|---------|---------|---------|--------------|--------|
+| **対話スタイル適応** |
+| AdaptiveDialogueStyle | `test_dialogue_style.py` | 25 | 95%以上 | 🔴 High |
+| **自己省察・一貫性** |
+| SelfReflection | `test_self_reflection.py` | 15 | 95%以上 | 🔴 High |
+| DialogueCoherence | `test_self_reflection.py` | 15 | 90%以上 | 🔴 High |
+| TopicTracker | `test_self_reflection.py` | 15 | 90%以上 | 🟡 Medium |
+| **統合テスト** |
+| 長期記憶連携 | `test_integration_reflection.py` | 10 | 85%以上 | 🟡 Medium |
+| API統合 | `test_api_dialogue.py` | 10 | 85%以上 | 🟡 Medium |
+| **合計** | **6ファイル** | **90** | **平均90%以上** | - |
 
-### 6.2 テストカテゴリ
+### 6.2 テスト実行方法
 
-**Unit Tests（20件）**:
-- パラメータ境界値テスト
-- フィードバック学習テスト
-- プロンプト生成テスト
-- 矛盾検出テスト
-- トピック追跡テスト
-
-**Integration Tests（10件）**:
-- 長期記憶との連携テスト
-- 感情モデルとの連携テスト
-- API統合テスト
-
-### 6.3 実行方法
+#### 基本的なテスト実行
 
 ```bash
 # 全テスト実行
 pytest tests/test_dialogue_style.py tests/test_self_reflection.py -v
 
-# カバレッジ計測
-pytest --cov=core --cov-report=html tests/
+# カバレッジ付きテスト実行
+pytest tests/ --cov=core.dialogue_style --cov=core.self_reflection --cov-report=html --cov-report=term
+
+# 特定のテストのみ
+pytest tests/test_dialogue_style.py::test_style_init -v
+
+# マーカーで実行
+pytest -m unit -v  # ユニットテストのみ
+pytest -m integration -v  # 統合テストのみ
 ```
+
+#### TDDサイクルでの実行
+
+```bash
+# 1. テストを書いた後（RED）
+pytest tests/test_dialogue_style.py::test_style_init -v
+# → 期待: FAILED（実装前）
+
+# 2. 最小限の実装後（GREEN）
+pytest tests/test_dialogue_style.py::test_style_init -v
+# → 期待: PASSED
+
+# 3. リファクタリング後（REFACTOR）
+pytest tests/test_dialogue_style.py -v
+# → 期待: 全テスト PASSED
+```
+
+---
+
+## Week 1-2: 対話スタイル動的調整 - テスト仕様（TDD）
+
+### テストファイル: `tests/test_dialogue_style.py`
+
+**テストクラス**: `TestAdaptiveDialogueStyle`
+
+**テストケース一覧（25件）**:
+
+#### 1. 初期化テスト（4件）
+
+```python
+def test_style_init_default_parameters():
+    """
+    Given: ユーザーID
+    When: AdaptiveDialogueStyleを初期化
+    Then: デフォルトパラメータが設定される
+    """
+    style = AdaptiveDialogueStyle("user_001")
+    
+    assert style.user_id == "user_001"
+    assert style.parameters["formality"] == 0.5
+    assert style.parameters["verbosity"] == 0.5
+    assert style.parameters["humor"] == 0.5
+    assert style.parameters["technical_level"] == 0.5
+    assert style.parameters["empathy"] == 0.7
+    assert style.parameters["proactivity"] == 0.5
+
+def test_style_init_load_from_profile():
+    """
+    Given: 既存のプロファイルファイル
+    When: AdaptiveDialogueStyleを初期化
+    Then: プロファイルからパラメータが読み込まれる
+    """
+    # 事前にプロファイルを作成
+    import os
+    os.makedirs("profiles", exist_ok=True)
+    with open("profiles/user_002_style.json", "w") as f:
+        json.dump({"formality": 0.8, "verbosity": 0.3}, f)
+    
+    style = AdaptiveDialogueStyle("user_002")
+    
+    assert style.parameters["formality"] == 0.8
+    assert style.parameters["verbosity"] == 0.3
+
+def test_style_init_nonexistent_profile():
+    """
+    Given: 存在しないプロファイル
+    When: AdaptiveDialogueStyleを初期化
+    Then: デフォルトパラメータが使用される
+    """
+    style = AdaptiveDialogueStyle("nonexistent_user")
+    
+    assert style.parameters["formality"] == 0.5
+    assert style.parameters["verbosity"] == 0.5
+```
+
+#### 2. フィードバック学習テスト（8件）
+
+```python
+def test_learn_from_feedback_verbosity_increase():
+    """
+    Given: 詳細希望フィードバック
+    When: learn_from_feedback()を呼び出す
+    Then: verbosityパラメータが増加する
+    """
+    style = AdaptiveDialogueStyle("user_003")
+    initial_verbosity = style.parameters["verbosity"]
+    
+    style.learn_from_feedback({
+        "message": "もっと詳しく説明してほしい",
+        "thumbs_up": True
+    })
+    
+    assert style.parameters["verbosity"] > initial_verbosity
+    assert style.parameters["verbosity"] <= 1.0
+
+def test_learn_from_feedback_verbosity_decrease():
+    """
+    Given: 簡潔希望フィードバック
+    When: learn_from_feedback()を呼び出す
+    Then: verbosityパラメータが減少する
+    """
+    style = AdaptiveDialogueStyle("user_004")
+    initial_verbosity = style.parameters["verbosity"]
+    
+    style.learn_from_feedback({
+        "message": "簡潔に説明してください",
+        "thumbs_up": True
+    })
+    
+    assert style.parameters["verbosity"] < initial_verbosity
+    assert style.parameters["verbosity"] >= 0.0
+
+def test_learn_from_feedback_technical_level_decrease():
+    """
+    Given: 専門用語多すぎるフィードバック
+    When: learn_from_feedback()を呼び出す
+    Then: technical_levelパラメータが減少する
+    """
+    style = AdaptiveDialogueStyle("user_005")
+    style.parameters["technical_level"] = 0.8
+    initial_level = style.parameters["technical_level"]
+    
+    style.learn_from_feedback({
+        "message": "わかりやすく説明してください",
+        "thumbs_up": True
+    })
+    
+    assert style.parameters["technical_level"] < initial_level
+    assert style.parameters["technical_level"] >= 0.0
+
+def test_learn_from_feedback_specific_feedback():
+    """
+    Given: 特定パラメータのフィードバック
+    When: learn_from_feedback()を呼び出す
+    Then: 指定されたパラメータが更新される
+    """
+    style = AdaptiveDialogueStyle("user_006")
+    initial_formality = style.parameters["formality"]
+    
+    style.learn_from_feedback({
+        "message": "カジュアルな感じがいい",
+        "thumbs_up": True,
+        "specific_feedback": {"formality": "-"}
+    })
+    
+    assert style.parameters["formality"] < initial_formality
+
+def test_learn_from_feedback_parameter_upper_bound():
+    """
+    Given: 上限に達しているパラメータ
+    When: learn_from_feedback()で増加を試みる
+    Then: パラメータが1.0を超えない
+    """
+    style = AdaptiveDialogueStyle("user_007")
+    style.parameters["verbosity"] = 1.0
+    
+    style.learn_from_feedback({
+        "message": "もっと詳しく",
+        "thumbs_up": True
+    })
+    
+    assert style.parameters["verbosity"] == 1.0
+
+def test_learn_from_feedback_parameter_lower_bound():
+    """
+    Given: 下限に達しているパラメータ
+    When: learn_from_feedback()で減少を試みる
+    Then: パラメータが0.0を下回らない
+    """
+    style = AdaptiveDialogueStyle("user_008")
+    style.parameters["verbosity"] = 0.0
+    
+    style.learn_from_feedback({
+        "message": "簡潔に",
+        "thumbs_up": True
+    })
+    
+    assert style.parameters["verbosity"] == 0.0
+
+def test_learn_from_feedback_saves_to_profile():
+    """
+    Given: フィードバック学習
+    When: learn_from_feedback()を呼び出す
+    Then: プロファイルに保存される
+    """
+    style = AdaptiveDialogueStyle("user_009")
+    style.learn_from_feedback({
+        "message": "詳しく",
+        "thumbs_up": True
+    })
+    
+    # 新しいインスタンスで読み込み確認
+    style2 = AdaptiveDialogueStyle("user_009")
+    assert style2.parameters["verbosity"] > 0.5
+```
+
+#### 3. プロンプト生成テスト（8件）
+
+```python
+def test_generate_style_prompt_formal():
+    """
+    Given: フォーマルなパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: フォーマルなプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_010")
+    style.parameters["formality"] = 0.8
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "丁寧" in prompt or "礼儀正しい" in prompt
+
+def test_generate_style_prompt_casual():
+    """
+    Given: カジュアルなパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: カジュアルなプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_011")
+    style.parameters["formality"] = 0.2
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "フレンドリー" in prompt or "カジュアル" in prompt
+
+def test_generate_style_prompt_verbose():
+    """
+    Given: 詳細なパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: 詳細な説明を促すプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_012")
+    style.parameters["verbosity"] = 0.8
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "詳細" in prompt or "具体例" in prompt
+
+def test_generate_style_prompt_concise():
+    """
+    Given: 簡潔なパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: 簡潔な説明を促すプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_013")
+    style.parameters["verbosity"] = 0.2
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "簡潔" in prompt or "要点" in prompt
+
+def test_generate_style_prompt_humorous():
+    """
+    Given: ユーモラスなパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: ユーモアを含むプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_014")
+    style.parameters["humor"] = 0.8
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "ユーモア" in prompt or "楽しい" in prompt
+
+def test_generate_style_prompt_technical():
+    """
+    Given: 専門的なパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: 専門用語を含むプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_015")
+    style.parameters["technical_level"] = 0.8
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "専門用語" in prompt or "技術的" in prompt
+
+def test_generate_style_prompt_empathy():
+    """
+    Given: 共感度の高いパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: 共感的なプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_016")
+    style.parameters["empathy"] = 0.8
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "共感" in prompt or "寄り添い" in prompt
+
+def test_generate_style_prompt_multiple_parameters():
+    """
+    Given: 複数のパラメータ設定
+    When: generate_style_prompt()を呼び出す
+    Then: 複数の指示を含むプロンプトが生成される
+    """
+    style = AdaptiveDialogueStyle("user_017")
+    style.parameters["formality"] = 0.8
+    style.parameters["verbosity"] = 0.8
+    style.parameters["humor"] = 0.2
+    
+    prompt = style.generate_style_prompt()
+    
+    assert "丁寧" in prompt
+    assert "詳細" in prompt
+    assert "真面目" in prompt or "誠実" in prompt
+```
+
+#### 4. エッジケース・統合テスト（5件）
+
+```python
+def test_parameter_bounds_extreme_values():
+    """
+    Given: 極端な値でのフィードバック
+    When: 複数回フィードバックを適用
+    Then: パラメータが境界内に保たれる
+    """
+    style = AdaptiveDialogueStyle("user_018")
+    
+    # 上限テスト
+    for _ in range(20):
+        style.learn_from_feedback({"message": "詳しく", "thumbs_up": True})
+    assert style.parameters["verbosity"] <= 1.0
+    
+    # 下限テスト
+    style.parameters["verbosity"] = 0.0
+    for _ in range(20):
+        style.learn_from_feedback({"message": "簡潔に", "thumbs_up": True})
+    assert style.parameters["verbosity"] >= 0.0
+
+def test_empty_feedback_message():
+    """
+    Given: 空のフィードバックメッセージ
+    When: learn_from_feedback()を呼び出す
+    Then: エラーが発生しない
+    """
+    style = AdaptiveDialogueStyle("user_019")
+    
+    style.learn_from_feedback({
+        "message": "",
+        "thumbs_up": True
+    })
+    
+    # パラメータは変更されない
+    assert style.parameters["verbosity"] == 0.5
+
+def test_invalid_parameter_name():
+    """
+    Given: 無効なパラメータ名
+    When: learn_from_feedback()で指定
+    Then: エラーが発生しない（無視される）
+    """
+    style = AdaptiveDialogueStyle("user_020")
+    
+    style.learn_from_feedback({
+        "message": "test",
+        "specific_feedback": {"invalid_param": "+"}
+    })
+    
+    # エラーが発生しないことを確認
+    assert "invalid_param" not in style.parameters
+```
+
+---
+
+## Week 3-4: 自己省察・一貫性チェック - テスト仕様（TDD）
+
+### テストファイル: `tests/test_self_reflection.py`
+
+**テストクラス**: `TestSelfReflection`, `TestDialogueCoherence`, `TestTopicTracker`
+
+**テストケース一覧（45件）**:
+
+#### 1. SelfReflection テスト（15件）
+
+```python
+class TestSelfReflection:
+    """自己省察クラスのテスト"""
+    
+    def test_reflect_on_conversation_success(self):
+        """
+        Given: 会話履歴
+        When: reflect_on_conversation()を呼び出す
+        Then: 省察結果が返される
+        """
+        reflection = SelfReflection("lumina")
+        
+        conversation = [
+            {"role": "user", "content": "わかりやすく説明してください", "session_id": "sess_001"},
+            {"role": "assistant", "content": "承知しました", "session_id": "sess_001"}
+        ]
+        
+        result = reflection.reflect_on_conversation(conversation)
+        
+        assert "timestamp" in result
+        assert result["session_id"] == "sess_001"
+        assert "reflection" in result
+        assert "lessons_learned" in result
+        assert isinstance(result["lessons_learned"], list)
+    
+    def test_reflect_on_conversation_extracts_lessons(self):
+        """
+        Given: わかりやすく説明してほしいという会話
+        When: reflect_on_conversation()を呼び出す
+        Then: technical_levelを下げるという学びが抽出される
+        """
+        reflection = SelfReflection("lumina")
+        
+        conversation = [
+            {"role": "user", "content": "わかりやすく説明してください", "session_id": "sess_002"},
+            {"role": "assistant", "content": "承知しました", "session_id": "sess_002"}
+        ]
+        
+        result = reflection.reflect_on_conversation(conversation)
+        
+        assert "technical_level を下げる" in result["lessons_learned"]
+    
+    def test_reflect_on_conversation_empty_history(self):
+        """
+        Given: 空の会話履歴
+        When: reflect_on_conversation()を呼び出す
+        Then: 空の省察結果が返される
+        """
+        reflection = SelfReflection("lumina")
+        
+        result = reflection.reflect_on_conversation([])
+        
+        assert result["reflection"] == ""
+        assert result["lessons_learned"] == []
+    
+    def test_reflect_on_conversation_no_user_messages(self):
+        """
+        Given: ユーザーメッセージがない会話履歴
+        When: reflect_on_conversation()を呼び出す
+        Then: 空の省察結果が返される
+        """
+        reflection = SelfReflection("lumina")
+        
+        conversation = [
+            {"role": "assistant", "content": "こんにちは", "session_id": "sess_003"}
+        ]
+        
+        result = reflection.reflect_on_conversation(conversation)
+        
+        assert result["lessons_learned"] == []
+    
+    def test_store_reflection(self):
+        """
+        Given: 省察結果
+        When: reflect_on_conversation()を呼び出す
+        Then: 省察が長期記憶に保存される
+        """
+        reflection = SelfReflection("clarisse")
+        
+        conversation = [
+            {"role": "user", "content": "詳しく教えて", "session_id": "sess_004"},
+            {"role": "assistant", "content": "はい", "session_id": "sess_004"}
+        ]
+        
+        result = reflection.reflect_on_conversation(conversation)
+        
+        # 保存処理は _store_reflection 内で実行済み
+        assert result is not None
+    
+    def test_retrieve_past_lessons(self):
+        """
+        Given: 過去の学びが保存されている
+        When: retrieve_past_lessons()を呼び出す
+        Then: 関連する過去の学びが返される
+        """
+        reflection = SelfReflection("lumina")
+        
+        # 事前に省察を保存
+        conversation = [
+            {"role": "user", "content": "わかりやすく", "session_id": "sess_005"},
+            {"role": "assistant", "content": "承知", "session_id": "sess_005"}
+        ]
+        reflection.reflect_on_conversation(conversation)
+        
+        lessons = reflection.retrieve_past_lessons("ユーザーが技術的な質問をしている")
+        
+        assert isinstance(lessons, list)
+```
+
+#### 2. DialogueCoherence テスト（15件）
+
+```python
+class TestDialogueCoherence:
+    """対話一貫性チェッククラスのテスト"""
+    
+    def test_check_consistency_no_contradiction(self):
+        """
+        Given: 矛盾のない新しい発言
+        When: check_consistency()を呼び出す
+        Then: 矛盾が検出されない
+        """
+        coherence = DialogueCoherence()
+        
+        history = [
+            {"role": "assistant", "content": "私は猫が好きです"}
+        ]
+        
+        result = coherence.check_consistency("私は犬も好きです", history)
+        
+        assert result["contradiction_detected"] is False
+        assert result["contradictory_past_statement"] is None
+    
+    def test_detect_contradiction_like_dislike(self):
+        """
+        Given: 好きと苦手の矛盾
+        When: _detect_contradiction()を呼び出す
+        Then: 矛盾が検出される
+        """
+        coherence = DialogueCoherence()
+        
+        assert coherence._detect_contradiction("私は猫が好きです", "私は猫が苦手です")
+    
+    def test_detect_contradiction_no_contradiction(self):
+        """
+        Given: 矛盾のない2つの発言
+        When: _detect_contradiction()を呼び出す
+        Then: 矛盾が検出されない
+        """
+        coherence = DialogueCoherence()
+        
+        assert not coherence._detect_contradiction("私は猫が好きです", "私は犬も好きです")
+    
+    def test_detect_contradiction_opposite_patterns(self):
+        """
+        Given: 反対のパターン
+        When: _detect_contradiction()を呼び出す
+        Then: 矛盾が検出される
+        """
+        coherence = DialogueCoherence()
+        
+        # 得意と苦手
+        assert coherence._detect_contradiction("私はプログラミングが得意です", "私はプログラミングが苦手です")
+        
+        # 賛成と反対
+        assert coherence._detect_contradiction("その案に賛成です", "その案に反対です")
+    
+    def test_generate_clarification(self):
+        """
+        Given: 矛盾が検出された
+        When: _generate_clarification()を呼び出す
+        Then: 明確化質問が生成される
+        """
+        coherence = DialogueCoherence()
+        
+        clarification = coherence._generate_clarification(
+            "私は猫が好きです",
+            "私は猫が苦手です"
+        )
+        
+        assert "以前" in clarification
+        assert "猫が苦手" in clarification
+        assert "猫が好き" in clarification
+```
+
+#### 3. TopicTracker テスト（15件）
+
+```python
+class TestTopicTracker:
+    """トピック追跡クラスのテスト"""
+    
+    def test_detect_topic_shift_initial(self):
+        """
+        Given: 初回のユーザー入力
+        When: detect_topic_shift()を呼び出す
+        Then: トピックが設定され、転換は検出されない
+        """
+        tracker = TopicTracker()
+        
+        result = tracker.detect_topic_shift("機械学習について教えてください", {})
+        
+        assert result["shift_detected"] is False
+        assert result["current_topic"] == "機械学習"
+        assert len(result["topic_history"]) == 1
+    
+    def test_detect_topic_shift_same_topic(self):
+        """
+        Given: 同じトピックの入力
+        When: detect_topic_shift()を呼び出す
+        Then: 転換は検出されない
+        """
+        tracker = TopicTracker()
+        tracker.detect_topic_shift("機械学習について教えてください", {})
+        
+        result = tracker.detect_topic_shift("機械学習のモデルは？", {})
+        
+        assert result["shift_detected"] is False
+        assert result["current_topic"] == "機械学習"
+    
+    def test_detect_topic_shift_different_topic(self):
+        """
+        Given: 異なるトピックの入力
+        When: detect_topic_shift()を呼び出す
+        Then: 転換が検出され、トピック履歴が更新される
+        """
+        tracker = TopicTracker()
+        tracker.detect_topic_shift("機械学習について教えてください", {})
+        
+        result = tracker.detect_topic_shift("Pythonのコードを教えて", {})
+        
+        assert result["shift_detected"] is True
+        assert result["current_topic"] == "Python"
+        assert len(result["topic_history"]) == 2
+        assert result["topic_history"][0]["topic"] == "機械学習"
+        assert result["topic_history"][0]["end"] is not None
+    
+    def test_generate_transition_phrase(self):
+        """
+        Given: 旧トピックと新トピック
+        When: generate_transition_phrase()を呼び出す
+        Then: 転換フレーズが生成される
+        """
+        tracker = TopicTracker()
+        
+        phrase = tracker.generate_transition_phrase("機械学習", "Python")
+        
+        assert "機械学習" in phrase
+        assert "Python" in phrase
+    
+    def test_suggest_topic_return(self):
+        """
+        Given: 2つ以上のトピック履歴
+        When: suggest_topic_return()を呼び出す
+        Then: 以前のトピックへの戻り提案が返される
+        """
+        tracker = TopicTracker()
+        tracker.detect_topic_shift("機械学習について", {})
+        tracker.detect_topic_shift("Pythonについて", {})
+        
+        suggestion = tracker.suggest_topic_return()
+        
+        assert suggestion is not None
+        assert "機械学習" in suggestion
+    
+    def test_suggest_topic_return_insufficient_history(self):
+        """
+        Given: トピック履歴が1つ以下
+        When: suggest_topic_return()を呼び出す
+        Then: Noneが返される
+        """
+        tracker = TopicTracker()
+        tracker.detect_topic_shift("機械学習について", {})
+        
+        suggestion = tracker.suggest_topic_return()
+        
+        assert suggestion is None
+    
+    def test_extract_topic_keyword_match(self):
+        """
+        Given: キーワードを含むテキスト
+        When: _extract_topic()を呼び出す
+        Then: 対応するトピックが返される
+        """
+        tracker = TopicTracker()
+        
+        assert tracker._extract_topic("機械学習のモデルについて") == "機械学習"
+        assert tracker._extract_topic("Pythonのコードを書く") == "Python"
+        assert tracker._extract_topic("データベースの設計") == "データベース"
+    
+    def test_extract_topic_no_match(self):
+        """
+        Given: キーワードに一致しないテキスト
+        When: _extract_topic()を呼び出す
+        Then: "その他"が返される
+        """
+        tracker = TopicTracker()
+        
+        assert tracker._extract_topic("今日はいい天気ですね") == "その他"
+```
+
+---
+
+## テストフィクスチャ仕様
+
+### conftest.py の拡張
+
+```python
+# tests/conftest.py（拡張）
+
+import pytest
+import tempfile
+import os
+import json
+from unittest.mock import Mock, MagicMock
+
+from core.dialogue_style import AdaptiveDialogueStyle
+from core.self_reflection import SelfReflection, DialogueCoherence, TopicTracker
+from memory.long_term import LongTermMemory
+
+@pytest.fixture
+def temp_profile_dir():
+    """一時的なプロファイルディレクトリ"""
+    temp_dir = tempfile.mkdtemp()
+    original_dir = os.getcwd()
+    os.chdir(temp_dir)
+    os.makedirs("profiles", exist_ok=True)
+    yield temp_dir
+    os.chdir(original_dir)
+    import shutil
+    shutil.rmtree(temp_dir)
+
+@pytest.fixture
+def dialogue_style(temp_profile_dir):
+    """AdaptiveDialogueStyleインスタンス"""
+    return AdaptiveDialogueStyle("test_user")
+
+@pytest.fixture
+def mock_long_term_memory():
+    """LongTermMemoryのモック"""
+    mock = Mock(spec=LongTermMemory)
+    mock.store = Mock(return_value={"memory_id": "mem_001"})
+    mock.search = Mock(return_value=[])
+    return mock
+
+@pytest.fixture
+def self_reflection(mock_long_term_memory):
+    """SelfReflectionインスタンス（モック使用）"""
+    reflection = SelfReflection("test_character")
+    reflection.long_term_memory = mock_long_term_memory
+    return reflection
+
+@pytest.fixture
+def dialogue_coherence(mock_long_term_memory):
+    """DialogueCoherenceインスタンス（モック使用）"""
+    coherence = DialogueCoherence()
+    coherence.long_term_memory = mock_long_term_memory
+    return coherence
+
+@pytest.fixture
+def topic_tracker():
+    """TopicTrackerインスタンス"""
+    return TopicTracker()
+```
+
+---
+
+## テスト実行戦略
+
+### TDD実装順序
+
+1. **Week 1-2: 対話スタイル動的調整**
+   - 1日目: 初期化テスト（4件）→ 実装
+   - 2日目: フィードバック学習テスト（8件）→ 実装
+   - 3日目: プロンプト生成テスト（8件）→ 実装
+   - 4日目: エッジケース・統合テスト（5件）→ 実装・リファクタリング
+
+2. **Week 3-4: 自己省察・一貫性チェック**
+   - 1-2日目: SelfReflectionテスト（15件）→ 実装
+   - 3日目: DialogueCoherenceテスト（15件）→ 実装
+   - 4日目: TopicTrackerテスト（15件）→ 実装・リファクタリング
+
+### テスト品質基準
+
+**必須要件**:
+- ✅ **テスト成功率**: 100%（全90件のテストが成功）
+- ✅ **コードカバレッジ**: 90%以上（平均）
+- ✅ **テスト実行時間**: 全テスト3分以内
+- ✅ **テスト独立性**: 各テストは独立して実行可能
+- ✅ **モック使用**: 外部依存（LongTermMemory等）はモックで分離
+
+**TDDサイクル遵守**:
+- ✅ RED: 実装前にテストを書いている
+- ✅ GREEN: 最小限の実装でテストを通している
+- ✅ REFACTOR: リファクタリング後もテストが成功している
 
 ---
 
@@ -826,9 +1618,11 @@ pytest --cov=core --cov-report=html tests/
 ### 7.2 テストコード
 
 **新規ファイル**:
-- `tests/test_dialogue_style.py` (12件)
-- `tests/test_self_reflection.py` (18件)
-- **合計**: 30件
+- `tests/test_dialogue_style.py` (25件)
+- `tests/test_self_reflection.py` (45件)
+- `tests/test_integration_reflection.py` (10件)
+- `tests/test_api_dialogue.py` (10件)
+- **合計**: 90件
 
 ### 7.3 ドキュメント
 
@@ -840,8 +1634,47 @@ pytest --cov=core --cov-report=html tests/
 - [ ] 対話スタイル適応動作確認
 - [ ] 自己省察・矛盾検出テスト成功
 - [ ] トピック追跡精度 > 80%
-- [ ] 全テスト成功（30件）
-- [ ] カバレッジ > 88%
+- [ ] 全テスト成功（90件）
+- [ ] カバレッジ > 90%
+
+---
+
+## 8. Phase 5成功基準
+
+### TDD実装の成功基準
+
+**必須要件**:
+- ✅ **テストファースト**: 全機能がテスト駆動で実装されている
+- ✅ **テスト成功率**: 100%（全90件のテストが成功）
+- ✅ **コードカバレッジ**: 90%以上（平均）
+- ✅ **テスト実行時間**: 全テスト3分以内
+- ✅ **テスト独立性**: 各テストは独立して実行可能
+- ✅ **モック使用**: 外部依存（LongTermMemory等）はモックで分離
+
+**TDDサイクル遵守**:
+- ✅ RED: 実装前にテストを書いている
+- ✅ GREEN: 最小限の実装でテストを通している
+- ✅ REFACTOR: リファクタリング後もテストが成功している
+
+### 定量目標
+
+| 指標 | 目標値 | 測定方法 |
+|------|--------|----------|
+| **テスト成功率** | **100%** | pytest（全90件） |
+| **コードカバレッジ** | **90%以上** | pytest-cov |
+| **テスト実行時間** | **< 3分** | pytest --durations |
+| 対話スタイル適応精度 | > 85% | ユーザーフィードバック評価 |
+| トピック追跡精度 | > 80% | トピック検出テスト |
+| 矛盾検出精度 | > 75% | 矛盾検出テスト |
+
+### 定性目標
+
+✅ **TDD実装完了**: 全機能がテスト駆動で実装されている
+✅ **テスト仕様完備**: 全90件のテストケースが定義されている
+✅ **対話スタイル適応動作**: ユーザーフィードバックから学習
+✅ **自己省察機能動作**: 会話振り返りとメタ認知
+✅ **矛盾検出機能動作**: 過去発言との一貫性チェック
+✅ **トピック追跡機能動作**: 話題の流れ管理
 
 ---
 
